@@ -67,6 +67,26 @@ Opciones útiles:
 La descarga se cachea por tramos en `datos/crudos/`: si se corta a medias, la
 vuelves a lanzar y sigue por donde iba. Con `--forzar` reescribe lo ya bajado.
 
+## Ejecutarlo en GitHub (sin instalar nada)
+
+Hay un workflow que hace todo en los servidores de GitHub y deja el resultado
+commiteado en `resultados/`. Requiere un paso manual, una sola vez:
+
+1. Ve a **Settings → Secrets and variables → Actions → New repository secret**.
+2. Nombre: `AEMET_API_KEY`. Valor: tu clave de AEMET.
+3. Pestaña **Actions → Mapa de calor de noches tropicales → Run workflow**.
+   Puedes cambiar estación, años y umbral desde el propio formulario.
+
+Al terminar tendrás en el repo `resultados/mapa_calor_claro.png`,
+`resultados/mapa_calor_oscuro.png`, `resultados/noches_tropicales.csv` y
+`resultados/resumen.txt`, más los mismos ficheros como artefacto descargable
+del run. La descarga de AEMET se cachea entre ejecuciones, así que la segunda
+vez tarda segundos.
+
+El workflow también está programado el día 3 de cada mes, pero **GitHub solo
+lanza los `cron` desde la rama por defecto**: hasta que esta rama no se
+fusione, solo funcionará el botón de *Run workflow*.
+
 ## Detalles que importan
 
 **La definición.** Lo estándar (OMM, y lo que usa AEMET en sus informes) es
