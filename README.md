@@ -123,6 +123,25 @@ Cada tirada deja en el repo dos carpetas, y así una no pisa a la otra:
 Lo mismo va como artefacto descargable del run. La descarga de AEMET se cachea
 entre ejecuciones, así que a partir de la segunda vez tarda segundos.
 
+### Recibirlo por Telegram
+
+Si añades dos secretos más, cada tirada te manda los gráficos a un chat:
+
+1. Habla con [@BotFather](https://t.me/BotFather), `/newbot`, y guarda el token
+   como secreto `TELEGRAM_BOT_TOKEN`.
+2. Escríbele algo a tu bot (si no, no puede contestarte) y saca tu chat con
+   `curl "https://api.telegram.org/bot<TOKEN>/getUpdates"`. El número de
+   `chat.id` va en el secreto `TELEGRAM_CHAT_ID`. Para un grupo, mete el bot en
+   el grupo y usa el id negativo que aparezca ahí.
+
+Sin esos secretos el paso no falla: avisa y sigue. Las imágenes van como
+**documento**, no como foto, porque Telegram recomprime las fotos y estos
+gráficos llevan texto de 5 pt que se volvería ilegible.
+
+La tirada mensual ejecuta `scripts/generar_lote.sh`, que genera el juego
+completo (noches tropicales, tórridas, días de 35, anomalías de mínima y
+máxima, y las líneas), y envía los seis gráficos principales.
+
 El workflow también está programado el día 3 de cada mes, pero **GitHub solo
 lanza los `cron` desde la rama por defecto**: hasta que esta rama no se
 fusione, solo funcionará el botón de *Run workflow*.

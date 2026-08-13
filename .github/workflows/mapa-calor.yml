@@ -41,6 +41,14 @@ on:
       suavizado:
         description: "Días de la media móvil en el gráfico diario suavizado"
         default: "7"
+      lote_completo:
+        description: "Generar todas las series estándar (lo que hace la tirada mensual)"
+        type: boolean
+        default: false
+      telegram:
+        description: "Enviar los gráficos por Telegram al terminar"
+        type: boolean
+        default: true
       commitear:
         description: "Guardar los resultados en el repo"
         type: boolean
@@ -166,6 +174,13 @@ jobs:
           python -m aemet_noches lineas "${args[@]}" --resolucion diaria \
             --suavizado "${SUAVIZADO:-7}" --png "$destino/diaria_suave_{tema}.png"
 
+      - name: Lote completo (las series estándar de la tirada mensual)
+        if: ${{ github.event_name == 'schedule' || inputs.lote_completo }}
+        env:
+          DESTACAR: ${{ inputs.destacar }}
+          SUAVIZADO: ${{ inputs.suavizado || '7' }}
+        run: ./scripts/generar_lote.sh
+
       - name: Resumen en la pestaña del run
         run: |
           {
@@ -184,17 +199,39 @@ jobs:
             resultados/lineas_${{ env.VARIABLE }}/
           if-no-files-found: error
 
+      - name: Enviar a Telegram
+        if: ${{ inputs.telegram != false }}
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
+            echo "::warning::Sin TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID: no se envía \
+          nada. Añádelos como secretos del repositorio para recibir los gráficos."
+            exit 0
+          fi
+          # El runner no trae la locale española, así que el mes va a mano.
+          nombres=(enero febrero marzo abril mayo junio julio agosto \
+                   septiembre octubre noviembre diciembre)
+          mes="${nombres[$(( 10#$(date +%m) - 1 ))]}"
+          # Solo se mandan los que existan; el script avisa de los que falten.
+          python scripts/telegram.py \
+            --texto "$ESTACION · $mes de $(date +%Y) · datos de AEMET hasta hoy" \
+            resultados/lineas_tmax/diaria_suave_claro.png \
+            resultados/min20/mapa_claro.png \
+            resultados/min25/mapa_claro.png \
+            resultados/tmax35/mapa_claro.png \
+            resultados/anomalias_tmax/mapa_claro.png \
+            resultados/anomalias_tmin/mapa_claro.png
+
       - name: Commitear los resultados
         if: ${{ inputs.commitear != false }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          rutas=("$SALIDA")
-          for extra in "resultados/anomalias_$VARIABLE" "resultados/lineas_$VARIABLE"; do
-            if [ -d "$extra" ]; then rutas+=("$extra"); fi
-          done
-          git add -f "${rutas[@]}"
+          git add -f resultados/
           if git diff --cached --quiet; then
             echo "Sin cambios en los resultados."
             exit 0
