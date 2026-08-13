@@ -142,9 +142,9 @@ La tirada mensual ejecuta `scripts/generar_lote.sh`, que genera el juego
 completo (noches tropicales, tórridas, días de 35, anomalías de mínima y
 máxima, y las líneas), y envía los seis gráficos principales.
 
-El workflow también está programado el día 3 de cada mes, pero **GitHub solo
-lanza los `cron` desde la rama por defecto**: hasta que esta rama no se
-fusione, solo funcionará el botón de *Run workflow*.
+El workflow está programado **el día 3 de cada mes**. GitHub solo lanza los
+`cron` desde la rama por defecto del repositorio, así que si algún día mueves
+esto a otra rama, la tirada mensual se queda muda hasta que la fusiones.
 
 ## Detalles que importan
 
