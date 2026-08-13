@@ -110,6 +110,39 @@ def cmd_anomalias(args):
         print(f"Mapa guardado en {ruta}")
 
 
+def cmd_lineas(args):
+    valores = datos.cargar_dias(args.carpeta, args.estacion, campo=args.variable)
+    serie = metricas.medias_por_mes(
+        valores,
+        desde_anyo=args.desde.year if args.desde else None,
+        hasta_anyo=args.hasta.year if args.hasta else None,
+    )
+    if not serie:
+        sys.exit("No hay datos para ese rango.")
+    normal = None
+    try:
+        normal = metricas.normales(serie, args.referencia)
+    except ValueError as exc:  # sin referencia suficiente se dibuja igual, sin línea
+        print(f"Aviso: no se dibuja la normal. {exc}")
+
+    destacar = args.destacar or [r.anyo for r in serie[-2:]]
+    faltan = [a for a in destacar if not any(r.anyo == a for r in serie)]
+    if faltan:
+        sys.exit(f"No hay datos de {', '.join(str(a) for a in faltan)} en la serie.")
+
+    nombre = args.nombre or datos.nombre_estacion(args.carpeta, args.estacion)
+    plantilla = args.png.stem
+    if "{tema}" not in plantilla and len(args.temas) > 1:
+        plantilla += "_{tema}"
+    for tema in args.temas:
+        png = args.png.with_name(plantilla.replace("{tema}", tema) + args.png.suffix)
+        ruta = grafico.dibujar_lineas(
+            serie, png, estacion=nombre, destacar=destacar, variable=args.variable,
+            normal=normal, referencia=args.referencia, tema=tema, credito=args.credito,
+        )
+        print(f"Gráfico guardado en {ruta}")
+
+
 def cmd_calcular(args):
     minimas = datos.cargar_dias(args.carpeta, args.estacion, campo=args.variable)
     resumenes = metricas.contar(
@@ -229,6 +262,23 @@ def construir_parser() -> argparse.ArgumentParser:
     sp.add_argument("--nombre")
     sp.add_argument("--credito")
     sp.set_defaults(func=cmd_anomalias)
+
+    sp = subs.add_parser(
+        "lineas",
+        help="una línea por año: el pasado en gris y los años que elijas en color",
+    )
+    comunes(sp)
+    opcion_variable(sp)
+    sp.add_argument(
+        "--destacar", type=int, nargs="+", metavar="AÑO",
+        help="años a resaltar (por defecto, el último de la serie)",
+    )
+    sp.add_argument("--referencia", type=_referencia, default=(1991, 2020))
+    sp.add_argument("--png", type=Path, default=CARPETA_SALIDA / "lineas_{tema}.png")
+    sp.add_argument("--temas", nargs="+", choices=sorted(grafico.TEMAS), default=["claro"])
+    sp.add_argument("--nombre")
+    sp.add_argument("--credito")
+    sp.set_defaults(func=cmd_lineas)
 
     sp = subs.add_parser("todo", help="descargar + calcular + mapa de una tacada")
     comunes(sp)

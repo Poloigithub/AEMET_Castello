@@ -70,3 +70,22 @@ def test_dibuja_el_mapa_de_anomalias(tmp_path, tema):
         serie, anom, tmp_path / f"{tema}.png", estacion="PRUEBA", tema=tema, dpi=80
     )
     assert destino.exists() and destino.stat().st_size > 1000
+
+
+@pytest.mark.parametrize("tema", sorted(grafico.TEMAS))
+def test_dibuja_el_grafico_de_lineas(tmp_path, tema):
+    serie = metricas.medias_por_mes(_serie_constante(1991, 2021))
+    destino = grafico.dibujar_lineas(
+        serie, tmp_path / f"l_{tema}.png", estacion="PRUEBA",
+        destacar=[2020, 2021], normal=metricas.normales(serie), tema=tema, dpi=80,
+    )
+    assert destino.exists() and destino.stat().st_size > 1000
+
+
+def test_lineas_sin_normal_y_con_un_ano_que_no_esta(tmp_path):
+    serie = metricas.medias_por_mes(_serie_constante(2019, 2021))
+    destino = grafico.dibujar_lineas(
+        serie, tmp_path / "l.png", estacion="PRUEBA",
+        destacar=[2021, 1999], normal=None, dpi=80,   # 1999 no existe: se ignora
+    )
+    assert destino.exists()

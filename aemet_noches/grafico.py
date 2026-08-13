@@ -427,3 +427,140 @@ def dibujar_anomalias(
     fig.savefig(destino, facecolor=t["fondo"])
     plt.close(fig)
     return destino
+
+
+# Colores para los años destacados: naranja y violeta de la paleta categórica.
+# Validados como par (ΔE 37,6 en visión normal, 29,5 en protanopia), y ninguno
+# de los dos se lee como "año frío", que es lo que pasaría con el azul.
+DESTACADOS = {
+    "claro": ["#eb6834", "#4a3aa7", "#1baf7a"],
+    "oscuro": ["#d95926", "#9085e9", "#199e70"],
+}
+
+
+def dibujar_lineas(
+    serie: list[ResumenTermico],
+    destino: Path,
+    estacion: str,
+    destacar: list[int],
+    variable: str = "tmax",
+    normal: list[float] | None = None,
+    referencia: tuple[int, int] = (1991, 2020),
+    tema: str = "claro",
+    credito: str | None = None,
+    dpi: int = 200,
+) -> Path:
+    """Un año por línea: los de fondo en gris y los destacados en color."""
+    if not serie:
+        raise ValueError("No hay años que dibujar")
+    t = TEMAS[tema]
+    colores = DESTACADOS[tema]
+    meses = list(range(12))
+
+    ancho, alto = 7.2, 4.6
+    fig = plt.figure(figsize=(ancho, alto), dpi=dpi, facecolor=t["fondo"])
+    ax = fig.add_axes([0.62 / ancho, 0.80 / alto, 5.75 / ancho, 3.10 / alto])
+    ax.set_facecolor(t["fondo"])
+
+    def puntos(r):
+        return [(m, r.medias[m]) for m in meses if r.medias[m] is not None]
+
+    # Fondo: todos los años que no se destacan, en gris y finos.
+    fondo = [r for r in serie if r.anyo not in destacar]
+    for r in fondo:
+        p = puntos(r)
+        if len(p) > 1:
+            ax.plot([x for x, _ in p], [y for _, y in p],
+                    color=t["sin_datos"], linewidth=0.7, zorder=1)
+
+    # La normal, como referencia de chrome (no es una serie más).
+    if normal:
+        ax.plot(meses, normal, color=t["tinta_2"], linewidth=1.1,
+                linestyle=(0, (4, 2)), zorder=2)
+
+    # Los años destacados, encima y con marcador.
+    dibujados = []
+    for i, anyo in enumerate(destacar):
+        r = next((x for x in serie if x.anyo == anyo), None)
+        if r is None:
+            continue
+        p = puntos(r)
+        if not p:
+            continue
+        color = colores[i % len(colores)]
+        ax.plot([x for x, _ in p], [y for _, y in p], color=color,
+                linewidth=1.9, marker="o", markersize=3.2,
+                markeredgecolor=t["fondo"], markeredgewidth=0.6, zorder=4)
+        dibujados.append((anyo, color, p[-1]))
+
+    # Etiqueta al final de cada línea: el texto en tinta, el color lo pone la línea.
+    for anyo, _, (x, y) in dibujados:
+        ax.annotate(
+            str(anyo), xy=(x, y), xytext=(5, 0), textcoords="offset points",
+            va="center", ha="left", fontsize=6.5, color=t["tinta"], zorder=5,
+            bbox=dict(facecolor=t["fondo"], edgecolor="none", pad=0.8),
+        )
+
+    ax.set_xticks(meses)
+    ax.set_xticklabels(MESES, fontsize=6.5, color=t["apagado"])
+    ax.tick_params(axis="both", length=0, pad=4)
+    for etiqueta in ax.get_yticklabels():
+        etiqueta.set_fontsize(6.5)
+        etiqueta.set_color(t["apagado"])
+    # La unidad, una sola vez arriba, en vez de repetirla en cada marca.
+    ax.yaxis.set_major_formatter(lambda v, _: f"{v:g}".replace(".", ","))
+    ax.text(
+        -0.012, 1.012, "°C", transform=ax.transAxes, ha="right", va="bottom",
+        fontsize=6.5, color=t["apagado"],
+    )
+    ax.grid(axis="y", color=t["sin_datos"], linewidth=0.5, zorder=0)
+    ax.set_axisbelow(True)
+    for lado in ("top", "right", "left"):
+        ax.spines[lado].set_visible(False)
+    ax.spines["bottom"].set_color(t["sin_datos"])
+    ax.spines["bottom"].set_linewidth(0.8)
+    ax.set_xlim(-0.35, 11.9)
+
+    # Leyenda: marca en color, texto en tinta.
+    manijas = [
+        plt.Line2D([], [], color=t["sin_datos"], linewidth=0.9),
+        plt.Line2D([], [], color=t["tinta_2"], linewidth=1.1, linestyle=(0, (4, 2))),
+    ]
+    etiquetas = [
+        f"Cada año de {serie[0].anyo} a {max(r.anyo for r in fondo)}",
+        f"Normal {referencia[0]}–{referencia[1]}",
+    ]
+    for anyo, color, _ in dibujados:
+        manijas.append(plt.Line2D([], [], color=color, linewidth=1.9))
+        etiquetas.append(str(anyo))
+    leyenda = ax.legend(
+        manijas, etiquetas, loc="upper left", bbox_to_anchor=(0, 1.10),
+        ncol=len(manijas), frameon=False, fontsize=6.3,
+        handlelength=1.6, columnspacing=1.4, handletextpad=0.5,
+    )
+    for texto in leyenda.get_texts():
+        texto.set_color(t["tinta_2"])
+
+    que = "máxima" if variable == "tmax" else "mínima"
+    titulo = fig.text(
+        0.62 / ancho, 1 - 0.30 / alto,
+        f"Temperatura {que} media de cada mes en {estacion}",
+        fontsize=11, color=t["tinta"], va="top", ha="left", weight="bold",
+    )
+    _ajustar_a_lo_ancho(fig, titulo, ancho - 0.9, minimo=7)
+
+    notas = [
+        f"Fuente: AEMET OpenData, valores climatológicos diarios. Se omiten los "
+        f"meses con menos del 90 % de días observados.",
+    ]
+    if credito:
+        notas.insert(0, credito)
+    fig.text(
+        0.62 / ancho, (0.14 + 0.08 * len(notas)) / alto, "\n".join(notas),
+        fontsize=5.6, color=t["apagado"], va="top", ha="left", linespacing=1.6,
+    )
+
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(destino, facecolor=t["fondo"])
+    plt.close(fig)
+    return destino

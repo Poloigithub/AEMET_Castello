@@ -35,6 +35,9 @@ on:
         description: "Dibujar también el mapa de anomalías"
         type: boolean
         default: true
+      destacar:
+        description: "Años a resaltar en el gráfico de líneas (vacío = los dos últimos)"
+        default: ""
       commitear:
         description: "Guardar los resultados en el repo"
         type: boolean
@@ -139,6 +142,19 @@ jobs:
             --csv "$destino/datos.csv" --png "$destino/mapa_{tema}.png" \
             | tee "$destino/resumen.txt"
 
+      - name: Gráfico de líneas
+        env:
+          DESTACAR: ${{ inputs.destacar }}
+        run: |
+          set -euo pipefail
+          destino="resultados/lineas_$VARIABLE"
+          mkdir -p "$destino"
+          args=(--estacion "$ESTACION" --variable "$VARIABLE" --credito "$CREDITO")
+          if [ -n "$DESTACAR" ]; then args+=(--destacar $DESTACAR); fi
+          if [ -n "$HASTA" ]; then args+=(--hasta "$HASTA"); fi
+          python -m aemet_noches lineas "${args[@]}" --desde "$DESDE" \
+            --temas claro oscuro --png "$destino/lineas_{tema}.png"
+
       - name: Resumen en la pestaña del run
         run: |
           {
@@ -154,6 +170,7 @@ jobs:
           path: |
             ${{ env.SALIDA }}/
             resultados/anomalias_${{ env.VARIABLE }}/
+            resultados/lineas_${{ env.VARIABLE }}/
           if-no-files-found: error
 
       - name: Commitear los resultados
@@ -163,9 +180,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           rutas=("$SALIDA")
-          if [ -d "resultados/anomalias_$VARIABLE" ]; then
-            rutas+=("resultados/anomalias_$VARIABLE")
-          fi
+          for extra in "resultados/anomalias_$VARIABLE" "resultados/lineas_$VARIABLE"; do
+            if [ -d "$extra" ]; then rutas+=("$extra"); fi
+          done
           git add -f "${rutas[@]}"
           if git diff --cached --quiet; then
             echo "Sin cambios en los resultados."

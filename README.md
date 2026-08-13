@@ -71,6 +71,13 @@ defecto es **1991–2020**, la normal climática de la OMM; se cambia con
 por debajo de lo normal, rojo por encima. A la derecha, la media del año y el
 récord absoluto.
 
+Y para ver la misma subida como curvas, un gráfico de líneas con un año por
+línea: el pasado en gris y los años que elijas en color, sobre la normal.
+
+```bash
+python -m aemet_noches lineas --variable tmax --destacar 2025 2026
+```
+
 También puedes contar días de calor con el mapa de siempre:
 `python -m aemet_noches todo --variable tmax --umbral 35`.
 
