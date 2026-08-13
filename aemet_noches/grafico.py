@@ -64,6 +64,16 @@ def _tinta_sobre(fondo: str, tema: dict) -> str:
     return oscura if _contraste(fondo, oscura) >= _contraste(fondo, "#ffffff") else "#ffffff"
 
 
+def nombre_del_fenomeno(umbral: float, estricto: bool = False) -> str:
+    """Los umbrales con nombre propio en climatología; el resto, descriptivo."""
+    if not estricto and umbral == 20:
+        return "Noches tropicales"
+    if not estricto and umbral == 25:
+        return "Noches tórridas"
+    signo = ">" if estricto else "≥"
+    return f"Noches con mínima {signo} {umbral:g} °C".replace(".", ",")
+
+
 def _ajustar_a_lo_ancho(fig, texto, ancho_max_pulg: float, minimo: float = 6.5) -> None:
     """Reduce el cuerpo del texto hasta que quepa en el ancho disponible."""
     fig.canvas.draw()
@@ -176,7 +186,7 @@ def dibujar(
     disponible = ancho - izq - 0.2
     titulo = fig.text(
         izq / ancho, 1 - 0.32 / alto,
-        f"Noches tropicales en {estacion}",
+        f"{nombre_del_fenomeno(umbral, estricto)} en {estacion}",
         fontsize=11, color=t["tinta"], va="top", ha="left", weight="bold",
     )
     subtitulo = fig.text(

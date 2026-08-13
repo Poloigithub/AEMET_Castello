@@ -35,6 +35,13 @@ def test_titulo_largo_no_desborda(tmp_path):
     )
 
 
+def test_el_titulo_cambia_con_el_umbral():
+    assert grafico.nombre_del_fenomeno(20) == "Noches tropicales"
+    assert grafico.nombre_del_fenomeno(25) == "Noches tórridas"
+    assert grafico.nombre_del_fenomeno(25, estricto=True) == "Noches con mínima > 25 °C"
+    assert grafico.nombre_del_fenomeno(22.5) == "Noches con mínima ≥ 22,5 °C"
+
+
 def test_sin_anyos_da_error(tmp_path):
     with pytest.raises(ValueError):
         grafico.dibujar([], tmp_path / "x.png", estacion="PRUEBA")

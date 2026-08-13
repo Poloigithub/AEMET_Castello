@@ -72,19 +72,30 @@ jobs:
           key: aemet-${{ env.ESTACION }}-${{ github.run_id }}
           restore-keys: aemet-${{ env.ESTACION }}-
 
+      - name: Carpeta de salida según el umbral
+        env:
+          ESTRICTO: ${{ inputs.estricto }}
+        run: |
+          set -euo pipefail
+          # Cada umbral tiene su carpeta, así una tirada no pisa la anterior.
+          slug="min${UMBRAL//./_}"
+          if [ "$ESTRICTO" = "true" ]; then slug="$slug-estricto"; fi
+          echo "SALIDA=resultados/$slug" >> "$GITHUB_ENV"
+          echo "SLUG=$slug" >> "$GITHUB_ENV"
+
       - name: Descargar de AEMET y calcular
         env:
           ESTRICTO: ${{ inputs.estricto }}
         run: |
           set -euo pipefail
-          mkdir -p resultados
+          mkdir -p "$SALIDA"
           args=(--estacion "$ESTACION" --umbral "$UMBRAL")
           if [ "$ESTRICTO" = "true" ]; then args+=(--estricto); fi
           fechas=(--desde "$DESDE")
           if [ -n "$HASTA" ]; then fechas+=(--hasta "$HASTA"); fi
           python -m aemet_noches descargar --estacion "$ESTACION" "${fechas[@]}"
           python -m aemet_noches calcular "${args[@]}" "${fechas[@]}" \
-            --csv resultados/noches_tropicales.csv | tee resultados/resumen.txt
+            --csv "$SALIDA/datos.csv" | tee "$SALIDA/resumen.txt"
 
       - name: Dibujar el mapa de calor (claro y oscuro)
         env:
@@ -95,23 +106,23 @@ jobs:
           if [ "$ESTRICTO" = "true" ]; then args+=(--estricto); fi
           for tema in claro oscuro; do
             python -m aemet_noches mapa "${args[@]}" \
-              --csv resultados/noches_tropicales.csv \
-              --png "resultados/mapa_calor_$tema.png" --tema "$tema"
+              --csv "$SALIDA/datos.csv" \
+              --png "$SALIDA/mapa_$tema.png" --tema "$tema"
           done
 
       - name: Resumen en la pestaña del run
         run: |
           {
-            echo "## Noches tropicales — estación $ESTACION"
+            echo "## Estación $ESTACION — umbral $UMBRAL °C"
             echo '```'
-            tail -n 45 resultados/resumen.txt
+            tail -n 45 "$SALIDA/resumen.txt"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mapa-calor-${{ env.ESTACION }}
-          path: resultados/
+          name: mapa-calor-${{ env.ESTACION }}-${{ env.SLUG }}
+          path: ${{ env.SALIDA }}/
           if-no-files-found: error
 
       - name: Commitear los resultados
@@ -120,12 +131,12 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f resultados/
+          git add -f "$SALIDA"
           if git diff --cached --quiet; then
             echo "Sin cambios en los resultados."
             exit 0
           fi
-          git commit -m "Resultados: noches tropicales en $ESTACION ($DESDE→${HASTA:-hoy})"
+          git commit -m "Resultados: $ESTACION, mínima >= $UMBRAL °C ($DESDE→${HASTA:-hoy})"
           for intento in 1 2 3 4; do
             git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
             sleep $((2 ** intento))
