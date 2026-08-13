@@ -438,71 +438,81 @@ DESTACADOS = {
 }
 
 
-def dibujar_lineas(
-    serie: list[ResumenTermico],
+
+
+def _dibujar_series(
+    series: dict[int, list[float | None]],
+    x: list[float],
+    ticks: tuple[list[float], list[str]],
     destino: Path,
     estacion: str,
     destacar: list[int],
-    variable: str = "tmax",
-    normal: list[float] | None = None,
-    referencia: tuple[int, int] = (1991, 2020),
-    tema: str = "claro",
-    credito: str | None = None,
+    variable: str,
+    normal: list[float] | None,
+    referencia: tuple[int, int],
+    tema: str,
+    credito: str | None,
+    detalle: str,
+    marcador: bool,
+    grosor_fondo: float,
+    alpha_fondo: float,
+    nota_extra: str | None = None,
     dpi: int = 200,
 ) -> Path:
-    """Un año por línea: los de fondo en gris y los destacados en color."""
-    if not serie:
+    """Núcleo común de los gráficos de líneas (uno por año)."""
+    if not series:
         raise ValueError("No hay años que dibujar")
     t = TEMAS[tema]
     colores = DESTACADOS[tema]
-    meses = list(range(12))
+    anyos = sorted(series)
 
     ancho, alto = 7.2, 4.6
     fig = plt.figure(figsize=(ancho, alto), dpi=dpi, facecolor=t["fondo"])
     ax = fig.add_axes([0.62 / ancho, 0.80 / alto, 5.75 / ancho, 3.10 / alto])
     ax.set_facecolor(t["fondo"])
 
-    def puntos(r):
-        return [(m, r.medias[m]) for m in meses if r.medias[m] is not None]
+    def trazo(valores):
+        return [(x[i], v) for i, v in enumerate(valores) if v is not None]
 
-    # Fondo: todos los años que no se destacan, en gris y finos.
-    fondo = [r for r in serie if r.anyo not in destacar]
-    for r in fondo:
-        p = puntos(r)
+    fondo = [a for a in anyos if a not in destacar]
+    for anyo in fondo:
+        p = trazo(series[anyo])
         if len(p) > 1:
-            ax.plot([x for x, _ in p], [y for _, y in p],
-                    color=t["sin_datos"], linewidth=0.7, zorder=1)
+            ax.plot([a for a, _ in p], [b for _, b in p], color=t["sin_datos"],
+                    linewidth=grosor_fondo, alpha=alpha_fondo, zorder=1,
+                    solid_capstyle="round")
 
-    # La normal, como referencia de chrome (no es una serie más).
     if normal:
-        ax.plot(meses, normal, color=t["tinta_2"], linewidth=1.1,
-                linestyle=(0, (4, 2)), zorder=2)
+        p = trazo(normal)
+        ax.plot([a for a, _ in p], [b for _, b in p], color=t["tinta_2"],
+                linewidth=1.1, linestyle=(0, (4, 2)), zorder=2)
 
-    # Los años destacados, encima y con marcador.
     dibujados = []
     for i, anyo in enumerate(destacar):
-        r = next((x for x in serie if x.anyo == anyo), None)
-        if r is None:
+        if anyo not in series:
             continue
-        p = puntos(r)
+        p = trazo(series[anyo])
         if not p:
             continue
         color = colores[i % len(colores)]
-        ax.plot([x for x, _ in p], [y for _, y in p], color=color,
-                linewidth=1.9, marker="o", markersize=3.2,
-                markeredgecolor=t["fondo"], markeredgewidth=0.6, zorder=4)
+        ax.plot(
+            [a for a, _ in p], [b for _, b in p], color=color, linewidth=1.6,
+            marker="o" if marcador else None, markersize=3.2,
+            markeredgecolor=t["fondo"], markeredgewidth=0.6,
+            zorder=4, solid_capstyle="round",
+        )
         dibujados.append((anyo, color, p[-1]))
 
-    # Etiqueta al final de cada línea: el texto en tinta, el color lo pone la línea.
-    for anyo, _, (x, y) in dibujados:
+    for anyo, _, (px, py) in dibujados:
         ax.annotate(
-            str(anyo), xy=(x, y), xytext=(5, 0), textcoords="offset points",
+            str(anyo), xy=(px, py), xytext=(5, 0), textcoords="offset points",
             va="center", ha="left", fontsize=6.5, color=t["tinta"], zorder=5,
             bbox=dict(facecolor=t["fondo"], edgecolor="none", pad=0.8),
         )
 
-    ax.set_xticks(meses)
-    ax.set_xticklabels(MESES, fontsize=6.5, color=t["apagado"])
+    posiciones, etiquetas_x = ticks
+    ax.set_xticks(posiciones)
+    ax.set_xticklabels(etiquetas_x, fontsize=6.5, color=t["apagado"])
     ax.tick_params(axis="both", length=0, pad=4)
     for etiqueta in ax.get_yticklabels():
         etiqueta.set_fontsize(6.5)
@@ -519,17 +529,16 @@ def dibujar_lineas(
         ax.spines[lado].set_visible(False)
     ax.spines["bottom"].set_color(t["sin_datos"])
     ax.spines["bottom"].set_linewidth(0.8)
-    ax.set_xlim(-0.35, 11.9)
+    margen = (x[-1] - x[0]) * 0.03
+    ax.set_xlim(x[0] - margen, x[-1] + margen)
 
-    # Leyenda: marca en color, texto en tinta.
-    manijas = [
-        plt.Line2D([], [], color=t["sin_datos"], linewidth=0.9),
-        plt.Line2D([], [], color=t["tinta_2"], linewidth=1.1, linestyle=(0, (4, 2))),
-    ]
-    etiquetas = [
-        f"Cada año de {serie[0].anyo} a {max(r.anyo for r in fondo)}",
-        f"Normal {referencia[0]}–{referencia[1]}",
-    ]
+    manijas = [plt.Line2D([], [], color=t["sin_datos"], linewidth=1.0)]
+    etiquetas = [f"Cada año de {anyos[0]} a {max(fondo)}" if fondo else "—"]
+    if normal:
+        manijas.append(
+            plt.Line2D([], [], color=t["tinta_2"], linewidth=1.1, linestyle=(0, (4, 2)))
+        )
+        etiquetas.append(f"Normal {referencia[0]}–{referencia[1]}")
     for anyo, color, _ in dibujados:
         manijas.append(plt.Line2D([], [], color=color, linewidth=1.9))
         etiquetas.append(str(anyo))
@@ -544,15 +553,14 @@ def dibujar_lineas(
     que = "máxima" if variable == "tmax" else "mínima"
     titulo = fig.text(
         0.62 / ancho, 1 - 0.30 / alto,
-        f"Temperatura {que} media de cada mes en {estacion}",
+        f"Temperatura {que} {detalle} en {estacion}",
         fontsize=11, color=t["tinta"], va="top", ha="left", weight="bold",
     )
     _ajustar_a_lo_ancho(fig, titulo, ancho - 0.9, minimo=7)
 
-    notas = [
-        f"Fuente: AEMET OpenData, valores climatológicos diarios. Se omiten los "
-        f"meses con menos del 90 % de días observados.",
-    ]
+    notas = ["Fuente: AEMET OpenData, valores climatológicos diarios."]
+    if nota_extra:
+        notas[0] += " " + nota_extra
     if credito:
         notas.insert(0, credito)
     fig.text(
@@ -564,3 +572,65 @@ def dibujar_lineas(
     fig.savefig(destino, facecolor=t["fondo"])
     plt.close(fig)
     return destino
+
+
+def dibujar_lineas(
+    serie: list[ResumenTermico],
+    destino: Path,
+    estacion: str,
+    destacar: list[int],
+    variable: str = "tmax",
+    normal: list[float] | None = None,
+    referencia: tuple[int, int] = (1991, 2020),
+    tema: str = "claro",
+    credito: str | None = None,
+    dpi: int = 200,
+) -> Path:
+    """Un punto por mes: doce medias mensuales, un año por línea."""
+    return _dibujar_series(
+        {r.anyo: r.medias for r in serie},
+        x=list(range(12)),
+        ticks=(list(range(12)), MESES),
+        destino=destino, estacion=estacion, destacar=destacar, variable=variable,
+        normal=normal, referencia=referencia, tema=tema, credito=credito,
+        detalle="media de cada mes", marcador=True,
+        grosor_fondo=0.7, alpha_fondo=1.0,
+        nota_extra="Se omiten los meses con menos del 90 % de días observados.",
+        dpi=dpi,
+    )
+
+
+def dibujar_lineas_diarias(
+    series: dict[int, list[float | None]],
+    destino: Path,
+    estacion: str,
+    destacar: list[int],
+    variable: str = "tmax",
+    normal: list[float] | None = None,
+    referencia: tuple[int, int] = (1991, 2020),
+    tema: str = "claro",
+    credito: str | None = None,
+    suavizado: int = 1,
+    dpi: int = 200,
+) -> Path:
+    """Un punto por día del año: 365 valores, un año por línea."""
+    from .metricas import INICIO_DE_MES
+
+    nota = "El 29 de febrero se descarta para que todos los años tengan 365 días."
+    if suavizado > 1:
+        nota = f"Media móvil centrada de {suavizado} días. " + nota
+    centros = [
+        (INICIO_DE_MES[m] + INICIO_DE_MES[m + 1] - 1) / 2 if m < 11
+        else (INICIO_DE_MES[11] + 365) / 2
+        for m in range(12)
+    ]
+    return _dibujar_series(
+        series,
+        x=list(range(365)),
+        ticks=(centros, MESES),
+        destino=destino, estacion=estacion, destacar=destacar, variable=variable,
+        normal=normal, referencia=referencia, tema=tema, credito=credito,
+        detalle="de cada día", marcador=False,
+        grosor_fondo=0.35, alpha_fondo=0.5,
+        nota_extra=nota, dpi=dpi,
+    )

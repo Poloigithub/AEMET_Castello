@@ -89,3 +89,40 @@ def test_lineas_sin_normal_y_con_un_ano_que_no_esta(tmp_path):
         destacar=[2021, 1999], normal=None, dpi=80,   # 1999 no existe: se ignora
     )
     assert destino.exists()
+
+
+def test_serie_diaria_alinea_los_anos_y_tira_el_29_de_febrero():
+    v = _serie_constante(2019, 2020)
+    v[date(2020, 2, 29)] = 99.0          # bisiesto: no debe aparecer
+    v[date(2020, 3, 1)] = 30.0
+    series = metricas.series_diarias(v)
+    assert set(series) == {2019, 2020}
+    assert all(len(x) == 365 for x in series.values())
+    assert 99.0 not in series[2020]
+    i = metricas.indice_del_dia(date(2020, 3, 1))
+    assert i == metricas.indice_del_dia(date(2019, 3, 1))  # mismo hueco en ambos
+    assert series[2020][i] == 30.0
+
+
+def test_suavizar_promedia_y_respeta_los_bordes():
+    assert metricas.suavizar([1.0, 2.0, 3.0], 1) == [1.0, 2.0, 3.0]
+    assert metricas.suavizar([0.0, 3.0, 0.0], 3) == pytest.approx([1.5, 1.0, 1.5])
+    assert metricas.suavizar([1.0, None, 3.0], 3) == pytest.approx([1.0, 2.0, 3.0])
+
+
+def test_normal_diaria_usa_la_ventana_y_avisa_si_falta_referencia():
+    series = metricas.series_diarias(_serie_constante(1991, 2020))
+    normal = metricas.normal_diaria(series)
+    assert len(normal) == 365 and all(abs(v - 25.0) < 1e-9 for v in normal)
+    with pytest.raises(ValueError, match="periodo de referencia"):
+        metricas.normal_diaria(metricas.series_diarias(_serie_constante(2018, 2020)))
+
+
+@pytest.mark.parametrize("tema", sorted(grafico.TEMAS))
+def test_dibuja_lineas_diarias(tmp_path, tema):
+    series = metricas.series_diarias(_serie_constante(1991, 2021))
+    destino = grafico.dibujar_lineas_diarias(
+        series, tmp_path / f"d_{tema}.png", estacion="PRUEBA", destacar=[2020, 2021],
+        normal=metricas.normal_diaria(series), tema=tema, suavizado=7, dpi=80,
+    )
+    assert destino.exists() and destino.stat().st_size > 1000

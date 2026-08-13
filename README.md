@@ -78,6 +78,13 @@ línea: el pasado en gris y los años que elijas en color, sobre la normal.
 python -m aemet_noches lineas --variable tmax --destacar 2025 2026
 ```
 
+Por defecto va **día a día** (365 puntos por año). En crudo el ruido diario se
+come la señal: con dos años encima, las líneas se cruzan todo el rato y no se
+puede decir cuál va por arriba. Para eso está `--suavizado 7`, que aplica una
+media móvil centrada y deja ver las olas de calor sin el temblor. Y con
+`--resolucion mensual` se reduce a doce puntos por año, que es lo más limpio
+para leer la tendencia aunque pierdas el detalle de cada episodio.
+
 También puedes contar días de calor con el mapa de siempre:
 `python -m aemet_noches todo --variable tmax --umbral 35`.
 

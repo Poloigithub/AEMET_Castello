@@ -112,23 +112,37 @@ def cmd_anomalias(args):
 
 def cmd_lineas(args):
     valores = datos.cargar_dias(args.carpeta, args.estacion, campo=args.variable)
-    serie = metricas.medias_por_mes(
-        valores,
-        desde_anyo=args.desde.year if args.desde else None,
-        hasta_anyo=args.hasta.year if args.hasta else None,
-    )
-    if not serie:
+    desde = args.desde.year if args.desde else None
+    hasta = args.hasta.year if args.hasta else None
+    diaria = args.resolucion == "diaria"
+
+    if diaria:
+        series = metricas.series_diarias(valores, desde, hasta)
+        anyos = sorted(series)
+    else:
+        serie = metricas.medias_por_mes(valores, desde, hasta)
+        anyos = [r.anyo for r in serie]
+    if not anyos:
         sys.exit("No hay datos para ese rango.")
+
     normal = None
     try:
-        normal = metricas.normales(serie, args.referencia)
+        normal = (
+            metricas.normal_diaria(series, args.referencia) if diaria
+            else metricas.normales(serie, args.referencia)
+        )
     except ValueError as exc:  # sin referencia suficiente se dibuja igual, sin línea
         print(f"Aviso: no se dibuja la normal. {exc}")
 
-    destacar = args.destacar or [r.anyo for r in serie[-2:]]
-    faltan = [a for a in destacar if not any(r.anyo == a for r in serie)]
+    destacar = args.destacar or anyos[-2:]
+    faltan = [a for a in destacar if a not in anyos]
     if faltan:
         sys.exit(f"No hay datos de {', '.join(str(a) for a in faltan)} en la serie.")
+
+    if diaria and args.suavizado > 1:
+        series = {a: metricas.suavizar(v, args.suavizado) for a, v in series.items()}
+        if normal:
+            normal = metricas.suavizar(normal, args.suavizado)
 
     nombre = args.nombre or datos.nombre_estacion(args.carpeta, args.estacion)
     plantilla = args.png.stem
@@ -136,10 +150,16 @@ def cmd_lineas(args):
         plantilla += "_{tema}"
     for tema in args.temas:
         png = args.png.with_name(plantilla.replace("{tema}", tema) + args.png.suffix)
-        ruta = grafico.dibujar_lineas(
-            serie, png, estacion=nombre, destacar=destacar, variable=args.variable,
+        comunes = dict(
+            estacion=nombre, destacar=destacar, variable=args.variable,
             normal=normal, referencia=args.referencia, tema=tema, credito=args.credito,
         )
+        if diaria:
+            ruta = grafico.dibujar_lineas_diarias(
+                series, png, suavizado=args.suavizado, **comunes
+            )
+        else:
+            ruta = grafico.dibujar_lineas(serie, png, **comunes)
         print(f"Gráfico guardado en {ruta}")
 
 
@@ -272,6 +292,14 @@ def construir_parser() -> argparse.ArgumentParser:
     sp.add_argument(
         "--destacar", type=int, nargs="+", metavar="AÑO",
         help="años a resaltar (por defecto, el último de la serie)",
+    )
+    sp.add_argument(
+        "--resolucion", choices=("diaria", "mensual"), default="diaria",
+        help="un punto por día (por defecto) o la media de cada mes",
+    )
+    sp.add_argument(
+        "--suavizado", type=int, default=1, metavar="DÍAS",
+        help="media móvil centrada para la resolución diaria (1 = sin suavizar)",
     )
     sp.add_argument("--referencia", type=_referencia, default=(1991, 2020))
     sp.add_argument("--png", type=Path, default=CARPETA_SALIDA / "lineas_{tema}.png")

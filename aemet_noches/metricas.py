@@ -234,3 +234,91 @@ def leer_csv(origen: Path) -> list[ResumenAnual]:
             r.dias_con_dato_mes = [int(fila[f"dias_con_dato_{m.lower()}"]) for m in MESES]
             resumenes.append(r)
     return resumenes
+
+
+# Calendario de 365 días (sin 29 de febrero) para poder superponer años.
+INICIO_DE_MES = [0]
+for _mes in range(1, 13):
+    INICIO_DE_MES.append(INICIO_DE_MES[-1] + calendar.monthrange(2001, _mes)[1])
+DIAS_DEL_ANYO = INICIO_DE_MES.pop()  # 365
+
+
+def indice_del_dia(dia: date) -> int | None:
+    """Posición 0-364 de una fecha. El 29 de febrero devuelve None."""
+    if dia.month == 2 and dia.day == 29:
+        return None
+    return INICIO_DE_MES[dia.month - 1] + dia.day - 1
+
+
+def series_diarias(
+    valores: dict[date, float],
+    desde_anyo: int | None = None,
+    hasta_anyo: int | None = None,
+) -> dict[int, list[float | None]]:
+    """{año: [365 valores]}, alineados por día del calendario.
+
+    Se descarta el 29 de febrero: es un día cada cuatro años y alinear los
+    bisiestos sin quitarlo desplazaría medio año de datos.
+    """
+    if not valores:
+        return {}
+    anyos = {d.year for d in valores}
+    ini = desde_anyo if desde_anyo is not None else min(anyos)
+    fin = hasta_anyo if hasta_anyo is not None else max(anyos)
+
+    series: dict[int, list[float | None]] = {}
+    for dia, valor in valores.items():
+        if not ini <= dia.year <= fin:
+            continue
+        i = indice_del_dia(dia)
+        if i is None:
+            continue
+        series.setdefault(dia.year, [None] * DIAS_DEL_ANYO)[i] = valor
+    return dict(sorted(series.items()))
+
+
+def normal_diaria(
+    series: dict[int, list[float | None]],
+    referencia: tuple[int, int] = (1991, 2020),
+    ventana: int = 15,
+    minimo_anyos: int = 15,
+) -> list[float]:
+    """Normal día a día, suavizada con una ventana centrada.
+
+    La media cruda de un solo día natural en 30 años sigue siendo ruidosa, así
+    que se promedia también el entorno de ±7 días, que es lo habitual para las
+    normales diarias. El calendario se trata como un ciclo: el 1 de enero
+    tiene a diciembre por vecino.
+    """
+    ini, fin = referencia
+    usados = [a for a in series if ini <= a <= fin]
+    if len(usados) < minimo_anyos:
+        raise ValueError(
+            f"El periodo de referencia {ini}-{fin} solo tiene {len(usados)} años "
+            f"(hacen falta {minimo_anyos}). Usa --referencia con otro periodo."
+        )
+    radio = ventana // 2
+    salida = []
+    for d in range(DIAS_DEL_ANYO):
+        muestras = [
+            v
+            for a in usados
+            for v in (series[a][(d + k) % DIAS_DEL_ANYO] for k in range(-radio, radio + 1))
+            if v is not None
+        ]
+        if not muestras:
+            raise ValueError(f"Sin datos de referencia alrededor del día {d + 1}")
+        salida.append(sum(muestras) / len(muestras))
+    return salida
+
+
+def suavizar(serie: list[float | None], ventana: int) -> list[float | None]:
+    """Media móvil centrada; en los bordes usa los días que haya."""
+    if ventana <= 1:
+        return list(serie)
+    radio = ventana // 2
+    salida: list[float | None] = []
+    for i in range(len(serie)):
+        trozo = [v for v in serie[max(0, i - radio) : i + radio + 1] if v is not None]
+        salida.append(sum(trozo) / len(trozo) if trozo else None)
+    return salida
