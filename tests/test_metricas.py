@@ -54,3 +54,13 @@ def test_csv_ida_y_vuelta(tmp_path):
     leidos = metricas.leer_csv(destino)
     assert leidos[0].por_mes == resumenes[0].por_mes
     assert leidos[0].dias_con_dato_mes == resumenes[0].dias_con_dato_mes
+
+
+def test_formatear_nombre_de_estacion():
+    from aemet_noches.datos import formatear_nombre as f
+
+    assert f("CASTELLÓ - ALMASSORA") == "Castelló - Almassora"
+    assert f("CASTELLÓ DE LA PLANA-ALMASSORA") == "Castelló de la Plana-Almassora"
+    assert f("L'ALCORA") == "L'Alcora"
+    assert f("VILA-REAL") == "Vila-real"          # grafía oficial, con minúscula
+    assert f("EMBALSE DE MARIA CRISTINA") == "Embalse de Maria Cristina"

@@ -226,6 +226,8 @@ def dibujar(
         "Fuente: AEMET OpenData, valores climatológicos diarios. "
         "Las celdas rayadas son meses sin observaciones.",
     ]
+    if credito:
+        notas.insert(0, credito)
     if incompletos:
         rango = f"{min(incompletos)}–{max(incompletos)}" if len(incompletos) > 3 else \
             ", ".join(str(a) for a in incompletos)
@@ -233,16 +235,11 @@ def dibujar(
             f"* Años con menos del {cobertura_minima:.0%} de días observados "
             f"({len(incompletos)}: {rango}); su recuento se queda corto."
         )
+    # El bloque crece hacia abajo, así que se sube el ancla según cuántas líneas haya.
     fig.text(
-        izq / ancho, 0.30 / alto, "\n".join(notas),
+        izq / ancho, (0.14 + 0.08 * len(notas)) / alto, "\n".join(notas),
         fontsize=5.6, color=t["apagado"], va="top", ha="left", linespacing=1.6,
     )
-    if credito:
-        # Firma abajo a la derecha, alineada con el borde de la columna "Año".
-        fig.text(
-            (ancho - 0.2) / ancho, 0.30 / alto, credito,
-            fontsize=5.6, color=t["apagado"], va="top", ha="right",
-        )
 
     destino.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(destino, facecolor=t["fondo"])
