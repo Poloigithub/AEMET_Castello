@@ -1,6 +1,6 @@
-Noches con mínima ≥ 25 °C
+Días con mínima ≥ 25 °C
 
-Año    Noches  Cobertura
+Año      Días  Cobertura
 1990        0      100%
 1991        0      100%
 1992        0      100%

@@ -1,6 +1,6 @@
-Noches con mínima ≥ 20 °C
+Días con mínima ≥ 20 °C
 
-Año    Noches  Cobertura
+Año      Días  Cobertura
 1990       71      100%
 1991       64      100%
 1992       50      100%
@@ -39,4 +39,4 @@ Año    Noches  Cobertura
 2025      102      100%
 2026       58       61%  (año incompleto)
 
-CSV guardado en resultados/noches_tropicales.csv
+CSV guardado en resultados/min20/datos.csv
