@@ -1,0 +1,14 @@
+# Datos descargados de AEMET (se regeneran con `descargar`)
+datos/
+# Resultados generados (CSV y PNG)
+salida/
+# Clave de la API, por si la guardas en fichero
+.aemet_api_key
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
