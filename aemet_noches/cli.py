@@ -63,8 +63,55 @@ def cmd_descargar(args):
     print(f"Tramos nuevos descargados: {nuevos}. Caché en {args.carpeta}")
 
 
+def _referencia(texto: str) -> tuple[int, int]:
+    """Acepta '1991-2020'."""
+    try:
+        ini, fin = (int(x) for x in texto.split("-"))
+    except ValueError:
+        raise argparse.ArgumentTypeError("Formato esperado: 1991-2020") from None
+    if fin <= ini:
+        raise argparse.ArgumentTypeError("El año final debe ser posterior al inicial")
+    return ini, fin
+
+
+def cmd_anomalias(args):
+    valores = datos.cargar_dias(args.carpeta, args.estacion, campo=args.variable)
+    serie = metricas.medias_por_mes(
+        valores,
+        desde_anyo=args.desde.year if args.desde else None,
+        hasta_anyo=args.hasta.year if args.hasta else None,
+    )
+    normal = metricas.normales(serie, args.referencia)
+    anomalia = metricas.anomalias(serie, normal)
+    metricas.guardar_csv_anomalias(serie, anomalia, normal, args.csv)
+
+    que = "máxima" if args.variable == "tmax" else "mínima"
+    ini, fin = args.referencia
+    print(f"Anomalía de la {que} media mensual respecto a {ini}-{fin}\n")
+    print(f"{'Año':<6}{'Media':>8}{'Anomalía':>10}{'Récord':>9}")
+    for r, a in zip(serie, anomalia):
+        validas = [v for v in a if v is not None]
+        media = f"{r.media_anual:.1f}" if r.media_anual is not None else "—"
+        anom = f"{sum(validas) / len(validas):+.2f}" if len(validas) == 12 else "parcial"
+        rec = f"{r.extremo:.1f}" if r.extremo is not None else "—"
+        print(f"{r.anyo:<6}{media:>8}{anom:>10}{rec:>9}")
+    print(f"\nCSV guardado en {args.csv}")
+
+    nombre = args.nombre or datos.nombre_estacion(args.carpeta, args.estacion)
+    plantilla = args.png.stem
+    if "{tema}" not in plantilla and len(args.temas) > 1:
+        plantilla += "_{tema}"  # varios temas necesitan nombres distintos
+    for tema in args.temas:
+        png = args.png.with_name(plantilla.replace("{tema}", tema) + args.png.suffix)
+        ruta = grafico.dibujar_anomalias(
+            serie, anomalia, png, estacion=nombre, variable=args.variable,
+            referencia=args.referencia, tema=tema, credito=args.credito,
+        )
+        print(f"Mapa guardado en {ruta}")
+
+
 def cmd_calcular(args):
-    minimas = datos.cargar_dias(args.carpeta, args.estacion)
+    minimas = datos.cargar_dias(args.carpeta, args.estacion, campo=args.variable)
     resumenes = metricas.contar(
         minimas,
         umbral=args.umbral,
@@ -74,8 +121,9 @@ def cmd_calcular(args):
     )
     metricas.guardar_csv(resumenes, args.csv)
     signo = ">" if args.estricto else "≥"
-    print(f"Noches con mínima {signo} {args.umbral:g} °C\n")
-    print(f"{'Año':<6}{'Noches':>7}{'Cobertura':>11}")
+    que = "máxima" if args.variable == "tmax" else "mínima"
+    print(f"Días con {que} {signo} {args.umbral:g} °C\n")
+    print(f"{'Año':<6}{'Días':>7}{'Cobertura':>11}")
     for r in resumenes:
         aviso = "  (año incompleto)" if r.cobertura < 0.9 else ""
         print(f"{r.anyo:<6}{r.total:>7}{r.cobertura:>10.0%}{aviso}")
@@ -92,6 +140,7 @@ def cmd_mapa(args):
         estacion=nombre,
         umbral=args.umbral,
         estricto=args.estricto,
+        variable=args.variable,
         tema=args.tema,
         credito=args.credito,
     )
@@ -120,11 +169,18 @@ def construir_parser() -> argparse.ArgumentParser:
             sp.add_argument("--desde", type=_fecha, default=date(1990, 1, 1))
             sp.add_argument("--hasta", type=_fecha, default=date.today())
 
+    def opcion_variable(sp):
+        sp.add_argument(
+            "--variable", choices=("tmin", "tmax"), default="tmin",
+            help="temperatura mínima (por defecto) o máxima del día",
+        )
+
     def opciones_umbral(sp):
+        opcion_variable(sp)
         sp.add_argument("--umbral", type=float, default=20.0, help="grados (por defecto 20)")
         sp.add_argument(
             "--estricto", action="store_true",
-            help="cuenta mínima > umbral en vez de >= umbral",
+            help="cuenta > umbral en vez de >= umbral",
         )
 
     sp = subs.add_parser("estaciones", help="lista estaciones de AEMET")
@@ -153,6 +209,26 @@ def construir_parser() -> argparse.ArgumentParser:
     sp.add_argument("--nombre", help="nombre de la estación para el título")
     sp.add_argument("--credito", help="firma al pie, p. ej. 'Gráfico: fulano@servidor'")
     sp.set_defaults(func=cmd_mapa)
+
+    sp = subs.add_parser(
+        "anomalias",
+        help="mapa de anomalías: cuánto se desvía cada mes de su normal climática",
+    )
+    comunes(sp)
+    opcion_variable(sp)
+    sp.add_argument(
+        "--referencia", type=_referencia, default=(1991, 2020),
+        help="periodo normal de referencia (por defecto 1991-2020)",
+    )
+    sp.add_argument("--csv", type=Path, default=CARPETA_SALIDA / "anomalias.csv")
+    sp.add_argument(
+        "--png", type=Path, default=CARPETA_SALIDA / "anomalias_{tema}.png",
+        help="ruta del PNG; '{tema}' se sustituye por claro/oscuro",
+    )
+    sp.add_argument("--temas", nargs="+", choices=sorted(grafico.TEMAS), default=["claro"])
+    sp.add_argument("--nombre")
+    sp.add_argument("--credito")
+    sp.set_defaults(func=cmd_anomalias)
 
     sp = subs.add_parser("todo", help="descargar + calcular + mapa de una tacada")
     comunes(sp)

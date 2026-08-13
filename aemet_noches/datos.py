@@ -61,8 +61,10 @@ def _num(valor) -> float | None:
         return None
 
 
-def cargar_dias(carpeta: Path, estacion: str | None = None) -> dict[date, float]:
-    """Devuelve {fecha: temperatura mínima} con todos los tramos cacheados.
+def cargar_dias(
+    carpeta: Path, estacion: str | None = None, campo: str = "tmin"
+) -> dict[date, float]:
+    """Devuelve {fecha: valor} para el campo pedido ('tmin' o 'tmax').
 
     Si un día aparece en varios tramos (solapes), gana el último leído; los
     valores de AEMET son idénticos, así que da igual cuál.
@@ -73,21 +75,21 @@ def cargar_dias(carpeta: Path, estacion: str | None = None) -> dict[date, float]
         raise FileNotFoundError(
             f"No hay datos en {carpeta}. Ejecuta primero el comando `descargar`."
         )
-    minimas: dict[date, float] = {}
+    valores: dict[date, float] = {}
     for fichero in ficheros:
         registros = json.loads(fichero.read_text(encoding="utf-8"))
         for reg in registros:
-            tmin = _num(reg.get("tmin"))
-            if tmin is None:
+            valor = _num(reg.get(campo))
+            if valor is None:
                 continue
             try:
                 dia = date.fromisoformat(reg["fecha"])
             except (KeyError, ValueError):
                 LOG.warning("Fecha ilegible en %s: %r", fichero.name, reg.get("fecha"))
                 continue
-            minimas[dia] = tmin
-    LOG.info("%d días con mínima leídos de %d ficheros", len(minimas), len(ficheros))
-    return minimas
+            valores[dia] = valor
+    LOG.info("%d días con %s leídos de %d ficheros", len(valores), campo, len(ficheros))
+    return valores
 
 
 def nombre_estacion(carpeta: Path, estacion: str | None = None) -> str:

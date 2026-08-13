@@ -53,10 +53,32 @@ python -m aemet_noches calcular --estacion 8500A
 python -m aemet_noches mapa --estacion 8500A --tema claro
 ```
 
+### ¿Están subiendo las temperaturas?
+
+Contar días por encima de un umbral depende mucho de dónde pongas el umbral y
+descarta la mayoría de los datos. Para ver la tendencia hay un segundo mapa,
+el de **anomalías**: cuánto se desvía la temperatura media de cada mes
+respecto a lo normal en esa estación para ese mes.
+
+```bash
+python -m aemet_noches anomalias --variable tmax --temas claro oscuro
+```
+
+Usa todos los días, quita el ciclo estacional (comparar julio con enero no
+dice nada) y no depende de ningún listón elegido a dedo. La referencia por
+defecto es **1991–2020**, la normal climática de la OMM; se cambia con
+`--referencia 1961-1990`. La escala es divergente, con gris en el cero: azul
+por debajo de lo normal, rojo por encima. A la derecha, la media del año y el
+récord absoluto.
+
+También puedes contar días de calor con el mapa de siempre:
+`python -m aemet_noches todo --variable tmax --umbral 35`.
+
 Opciones útiles:
 
 | Opción | Para qué |
 |---|---|
+| `--variable tmax` | trabajar con la máxima del día en vez de la mínima |
 | `--umbral 25` | otro listón, p. ej. «noches tórridas» (mínima ≥ 25 °C) |
 | `--estricto` | cuenta `> 20` en vez de `>= 20` (ver más abajo) |
 | `--tema oscuro` | paleta para fondo oscuro |
@@ -74,14 +96,18 @@ commiteado en `resultados/`. Requiere un paso manual, una sola vez:
 
 1. Ve a **Settings → Secrets and variables → Actions → New repository secret**.
 2. Nombre: `AEMET_API_KEY`. Valor: tu clave de AEMET.
-3. Pestaña **Actions → Mapa de calor de noches tropicales → Run workflow**.
-   Puedes cambiar estación, años y umbral desde el propio formulario.
+3. Pestaña **Actions → Mapas de calor de AEMET → Run workflow**. Desde el
+   formulario se cambian estación, años, variable (`tmin`/`tmax`), umbral y
+   firma.
 
-Al terminar tendrás en el repo `resultados/mapa_calor_claro.png`,
-`resultados/mapa_calor_oscuro.png`, `resultados/noches_tropicales.csv` y
-`resultados/resumen.txt`, más los mismos ficheros como artefacto descargable
-del run. La descarga de AEMET se cachea entre ejecuciones, así que la segunda
-vez tarda segundos.
+Cada tirada deja en el repo dos carpetas, y así una no pisa a la otra:
+
+- `resultados/min20/` — el conteo, con su `datos.csv`, `resumen.txt` y los
+  mapas en claro y oscuro. El nombre sale del umbral: `min25`, `tmax35`…
+- `resultados/anomalias_tmax/` — el mapa de anomalías de esa variable.
+
+Lo mismo va como artefacto descargable del run. La descarga de AEMET se cachea
+entre ejecuciones, así que a partir de la segunda vez tarda segundos.
 
 El workflow también está programado el día 3 de cada mes, pero **GitHub solo
 lanza los `cron` desde la rama por defecto**: hasta que esta rama no se
@@ -112,6 +138,8 @@ midió el termómetro, no es una serie homogeneizada.
 
 ## Qué genera
 
+- `salida/anomalias.csv` — media mensual, anomalía, media anual y récord del
+  año, más la fila `normal` con la referencia usada.
 - `salida/noches_tropicales.csv` — una fila por año: total, desglose de los doce
   meses, días con dato y cobertura (más el desglose mensual de días con dato).
 - `salida/mapa_calor.png` — el mapa de calor: filas = años, columnas = meses,
