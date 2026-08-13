@@ -97,6 +97,7 @@ def dibujar(
     umbral: float = 20.0,
     estricto: bool = False,
     tema: str = "claro",
+    credito: str | None = None,
     cobertura_minima: float = 0.9,
     dpi: int = 200,
 ) -> Path:
@@ -236,6 +237,12 @@ def dibujar(
         izq / ancho, 0.30 / alto, "\n".join(notas),
         fontsize=5.6, color=t["apagado"], va="top", ha="left", linespacing=1.6,
     )
+    if credito:
+        # Firma abajo a la derecha, alineada con el borde de la columna "Año".
+        fig.text(
+            (ancho - 0.2) / ancho, 0.30 / alto, credito,
+            fontsize=5.6, color=t["apagado"], va="top", ha="right",
+        )
 
     destino.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(destino, facecolor=t["fondo"])

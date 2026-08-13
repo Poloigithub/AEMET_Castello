@@ -93,6 +93,7 @@ def cmd_mapa(args):
         umbral=args.umbral,
         estricto=args.estricto,
         tema=args.tema,
+        credito=args.credito,
     )
     print(f"Mapa de calor guardado en {ruta}")
 
@@ -150,6 +151,7 @@ def construir_parser() -> argparse.ArgumentParser:
     sp.add_argument("--png", type=Path, default=CARPETA_SALIDA / "mapa_calor.png")
     sp.add_argument("--tema", choices=sorted(grafico.TEMAS), default="claro")
     sp.add_argument("--nombre", help="nombre de la estación para el título")
+    sp.add_argument("--credito", help="firma al pie, p. ej. 'Gráfico: fulano@servidor'")
     sp.set_defaults(func=cmd_mapa)
 
     sp = subs.add_parser("todo", help="descargar + calcular + mapa de una tacada")
@@ -162,6 +164,7 @@ def construir_parser() -> argparse.ArgumentParser:
     sp.add_argument("--png", type=Path, default=CARPETA_SALIDA / "mapa_calor.png")
     sp.add_argument("--tema", choices=sorted(grafico.TEMAS), default="claro")
     sp.add_argument("--nombre")
+    sp.add_argument("--credito")
     sp.set_defaults(func=cmd_todo)
 
     return p

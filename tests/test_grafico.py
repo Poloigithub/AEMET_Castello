@@ -25,6 +25,15 @@ def test_dibuja_png(tmp_path, tema):
     assert destino.exists() and destino.stat().st_size > 1000
 
 
+def test_credito_al_pie(tmp_path):
+    con = grafico.dibujar(
+        _resumenes(), tmp_path / "con.png", estacion="PRUEBA",
+        credito="Gráfico: fulano@servidor", dpi=80,
+    )
+    sin = grafico.dibujar(_resumenes(), tmp_path / "sin.png", estacion="PRUEBA", dpi=80)
+    assert con.read_bytes() != sin.read_bytes()
+
+
 def test_titulo_largo_no_desborda(tmp_path):
     grafico.dibujar(
         _resumenes(),

@@ -22,6 +22,9 @@ on:
         description: "Contar > umbral en vez de >= umbral"
         type: boolean
         default: false
+      credito:
+        description: "Firma al pie del gráfico"
+        default: "Gráfico: poloi@eurosky.social"
       commitear:
         description: "Guardar los resultados en el repo"
         type: boolean
@@ -100,9 +103,10 @@ jobs:
       - name: Dibujar el mapa de calor (claro y oscuro)
         env:
           ESTRICTO: ${{ inputs.estricto }}
+          CREDITO: "${{ inputs.credito || 'Gráfico: poloi@eurosky.social' }}"
         run: |
           set -euo pipefail
-          args=(--estacion "$ESTACION" --umbral "$UMBRAL")
+          args=(--estacion "$ESTACION" --umbral "$UMBRAL" --credito "$CREDITO")
           if [ "$ESTRICTO" = "true" ]; then args+=(--estricto); fi
           for tema in claro oscuro; do
             python -m aemet_noches mapa "${args[@]}" \
