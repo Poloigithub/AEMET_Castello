@@ -642,28 +642,32 @@ def dibujar_tabla_extremos(
     estacion: str,
     variable: str = "tmin",
     top: int = 10,
+    resaltar: list[int] | None = None,
     tema: str = "claro",
     credito: str | None = None,
     dpi: int = 200,
 ) -> Path:
-    """La clasificación como tabla, con una tira de puntos a escala al lado.
+    """La clasificación como tabla, resaltando las filas de los años elegidos.
 
-    Los valores de un top se apiñan en un rango estrecho, así que no llevan
-    barra: una barra que no arranca en cero miente sobre la proporción. Un
-    punto sobre un eje explícito sí dice la verdad.
+    Sin barras ni puntos: en un top los valores se apiñan en un palmo y
+    cualquier codificación de longitud exagera diferencias de una décima.
+    Aquí la cifra es el dato, y el color solo marca de qué año es cada fila.
     """
     from .metricas import fecha_larga
 
     if not ranking:
         raise ValueError("No hay nada que listar")
     t = TEMAS[tema]
-    acento = DESTACADOS[tema][0]
     n = len(ranking)
+    if resaltar is None:  # por defecto, el año más reciente que aparezca
+        resaltar = [max(d.year for d, _ in ranking)]
+    resaltar = set(resaltar)
+    wash = RAMPA[0] if tema == "claro" else "#4a1a06"
 
-    alto_fila = 0.27
-    izq, der = 0.55, 0.45
-    arriba, abajo = 1.30, 0.85
-    ancho = 5.9
+    alto_fila = 0.30
+    izq, der = 0.55, 0.50
+    arriba, abajo = 1.00, 0.85
+    ancho = 4.75
     alto = arriba + n * alto_fila + abajo
 
     fig = plt.figure(figsize=(ancho, alto), dpi=dpi, facecolor=t["fondo"])
@@ -672,54 +676,35 @@ def dibujar_tabla_extremos(
     ax.set_xlim(0, ancho)
     ax.set_ylim(0, alto)
 
-    # Columnas, en pulgadas desde la izquierda.
-    x_puesto, x_grados, x_fecha = izq + 0.28, izq + 1.35, izq + 1.55
-    x_eje_ini, x_eje_fin = ancho - der - 1.30, ancho - der
-    valores = [v for _, v in ranking]
-    lo, hi = min(valores), max(valores)
-    margen = max(0.15, (hi - lo) * 0.18)
-    lo, hi = lo - margen, hi + margen
-
-    def x_de(valor):
-        return x_eje_ini + (valor - lo) / (hi - lo) * (x_eje_fin - x_eje_ini)
-
-    y0 = abajo + n * alto_fila  # primera fila, de arriba abajo
-
-    # Eje de la tira de puntos: solo los dos extremos, en tinta apagada.
-    for valor in (lo + margen, hi - margen):
-        ax.text(
-            x_de(valor), y0 + 0.10, f"{valor:.1f}".replace(".", ","),
-            ha="center", va="bottom", fontsize=5.4, color=t["apagado"],
-        )
-    ax.plot(
-        [x_eje_ini, x_eje_fin], [y0 + 0.04, y0 + 0.04],
-        color=t["sin_datos"], linewidth=0.8, zorder=1,
-    )
+    x_puesto, x_grados, x_fecha = izq + 0.28, izq + 1.40, izq + 1.60
+    y0 = abajo + n * alto_fila
 
     puesto, anterior = 0, None
     for i, (dia, valor) in enumerate(ranking, start=1):
         y = y0 - i * alto_fila + alto_fila / 2
+        marcado = dia.year in resaltar
+        if marcado:
+            ax.add_patch(
+                Rectangle(
+                    (izq - 0.14, y - alto_fila / 2 + 0.02),
+                    ancho - izq - der + 0.28, alto_fila - 0.04,
+                    facecolor=wash, edgecolor="none", zorder=1,
+                )
+            )
         if valor != anterior:
             puesto, anterior = i, valor
             ax.text(
-                x_puesto, y, str(puesto), ha="right", va="center",
+                x_puesto, y, str(puesto), ha="right", va="center", zorder=2,
                 fontsize=7, color=t["apagado"],
             )
         ax.text(
             x_grados, y, f"{valor:.1f}".replace(".", ",") + " °C",
-            ha="right", va="center", fontsize=8.5, color=t["tinta"], weight="bold",
+            ha="right", va="center", fontsize=9, weight="bold", zorder=2,
+            color=t["tinta"],
         )
         ax.text(
-            x_fecha, y, fecha_larga(dia), ha="left", va="center",
-            fontsize=7.5, color=t["tinta_2"],
-        )
-        ax.plot(
-            [x_eje_ini, x_eje_fin], [y, y],
-            color=t["sin_datos"], linewidth=0.5, zorder=1,
-        )
-        ax.plot(
-            [x_de(valor)], [y], marker="o", markersize=4.4, color=acento,
-            markeredgecolor=t["fondo"], markeredgewidth=0.7, zorder=3,
+            x_fecha, y, fecha_larga(dia), ha="left", va="center", zorder=2,
+            fontsize=7.8, color=t["tinta"] if marcado else t["tinta_2"],
         )
 
     que = "noches" if variable == "tmin" else "días"
@@ -729,12 +714,14 @@ def dibujar_tabla_extremos(
         f"Las {n} {que} más cálidas en {estacion}",
         fontsize=11.5, color=t["tinta"], va="top", ha="left", weight="bold",
     )
-    _ajustar_a_lo_ancho(fig, titulo, ancho - izq - 0.3, minimo=7.5)
-    fig.text(
-        izq / ancho, 1 - 0.55 / alto,
-        f"Las temperaturas {cual} más altas de todo el registro",
+    _ajustar_a_lo_ancho(fig, titulo, ancho - izq - 0.3, minimo=7)
+    anyos = ", ".join(str(a) for a in sorted(resaltar))
+    subtitulo = fig.text(
+        izq / ancho, 1 - 0.56 / alto,
+        f"Las {cual} más altas del registro · en color, las de {anyos}",
         fontsize=7.5, color=t["tinta_2"], va="top", ha="left",
     )
+    _ajustar_a_lo_ancho(fig, subtitulo, ancho - izq - 0.3, minimo=5.8)
 
     notas = ["Fuente: AEMET OpenData, valores climatológicos diarios."]
     if n > top:
