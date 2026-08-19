@@ -140,6 +140,12 @@ def descargar_serie(
         except SinDatos:
             LOG.info("  sin datos en ese tramo")
             datos = []
+        # El tramo en curso cambia de nombre cada día (acaba en «hoy»), así que
+        # se barren las versiones anteriores del mismo tramo antes de escribir:
+        # si no, la caché acumularía un fichero por día con los mismos datos.
+        for viejo in carpeta.glob(f"{estacion}_{desde:%Y%m%d}_*.json"):
+            if viejo != destino:
+                viejo.unlink()
         destino.write_text(json.dumps(datos, ensure_ascii=False), encoding="utf-8")
         nuevos += 1
         time.sleep(cliente.espera)

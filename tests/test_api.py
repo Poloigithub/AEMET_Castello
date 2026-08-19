@@ -61,3 +61,17 @@ def test_el_tramo_en_curso_se_vuelve_a_pedir(tmp_path):
     en_curso = [p for p in pedidos if p[1] >= hoy]
     assert len(cerrados) == 1
     assert len(en_curso) == 2
+
+
+def test_no_se_acumulan_versiones_del_tramo_en_curso(tmp_path):
+    """El tramo abierto cambia de nombre cada día: solo debe quedar el último."""
+    from aemet_noches.api import descargar_serie
+
+    pedidos: list = []
+    for dia in (date(2026, 8, 18), date(2026, 8, 19), date(2026, 8, 20)):
+        descargar_serie(
+            _cliente_falso(pedidos), "8500A", date(2026, 7, 1), dia,
+            tmp_path, meses_por_lote=6, hoy=dia,
+        )
+    ficheros = sorted(p.name for p in tmp_path.glob("*.json"))
+    assert ficheros == ["8500A_20260701_20260820.json"]
