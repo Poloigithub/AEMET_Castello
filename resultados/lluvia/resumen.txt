@@ -44,3 +44,5 @@ Año      Total  Días  Racha seca   Top 5
 CSV guardado en resultados/lluvia/datos.csv
 Mapa guardado en resultados/lluvia/mapa_claro.png
 Mapa guardado en resultados/lluvia/mapa_oscuro.png
+Tabla de rachas guardada en resultados/lluvia/rachas_claro.png
+Tabla de rachas guardada en resultados/lluvia/rachas_oscuro.png
