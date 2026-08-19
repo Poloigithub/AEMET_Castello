@@ -32,3 +32,32 @@ def test_dia_31_no_rompe_el_salto_de_mes():
     lista = list(tramos(date(2021, 8, 31), date(2022, 3, 1), meses=6))
     assert lista[0][0] == date(2021, 8, 31)
     assert lista[-1][1] == date(2022, 3, 1)
+
+
+def _cliente_falso(registro):
+    class Falso:
+        espera = 0
+
+        def climatologia_diaria(self, estacion, ini, fin):
+            registro.append((ini, fin))
+            return [{"fecha": ini.isoformat(), "tmin": "10,0"}]
+
+    return Falso()
+
+
+def test_el_tramo_en_curso_se_vuelve_a_pedir(tmp_path):
+    """Un tramo que llega a hoy está incompleto: cachearlo congelaría la serie."""
+    from aemet_noches.api import descargar_serie
+
+    hoy = date(2026, 8, 19)
+    pedidos: list = []
+    for _ in range(2):  # dos ejecuciones seguidas
+        descargar_serie(
+            _cliente_falso(pedidos), "8500A", date(2026, 1, 1), hoy,
+            tmp_path, meses_por_lote=6, hoy=hoy,
+        )
+    # El primer semestre (cerrado) se pide una vez; el que llega a hoy, las dos.
+    cerrados = [p for p in pedidos if p[1] < hoy]
+    en_curso = [p for p in pedidos if p[1] >= hoy]
+    assert len(cerrados) == 1
+    assert len(en_curso) == 2

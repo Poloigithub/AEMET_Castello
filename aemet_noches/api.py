@@ -116,16 +116,22 @@ def descargar_serie(
     carpeta: Path,
     meses_por_lote: int = 6,
     forzar: bool = False,
+    hoy: date | None = None,
 ) -> int:
     """Descarga la climatología diaria por tramos y la cachea en disco.
 
     Devuelve el número de tramos descargados (los ya cacheados no cuentan).
+
+    El tramo que llega hasta hoy se vuelve a pedir siempre: está incompleto
+    por definición, y darlo por bueno dejaría la serie congelada en el día en
+    que se cacheó por primera vez.
     """
     carpeta.mkdir(parents=True, exist_ok=True)
+    hoy = hoy or date.today()
     nuevos = 0
     for desde, hasta in tramos(ini, fin, meses_por_lote):
         destino = carpeta / f"{estacion}_{desde:%Y%m%d}_{hasta:%Y%m%d}.json"
-        if destino.exists() and not forzar:
+        if destino.exists() and not forzar and hasta < hoy:
             LOG.debug("Ya estaba: %s", destino.name)
             continue
         LOG.info("Descargando %s → %s", desde, hasta)

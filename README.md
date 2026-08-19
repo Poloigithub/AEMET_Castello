@@ -142,7 +142,27 @@ La tirada mensual ejecuta `scripts/generar_lote.sh`, que genera el juego
 completo (noches tropicales, tórridas, días de 35, anomalías de mínima y
 máxima, y las líneas), y envía los seis gráficos principales.
 
-El workflow está programado **el día 3 de cada mes**. GitHub solo lanza los
+### Vigilancia diaria del top 10
+
+Un segundo workflow (`vigilancia.yml`) corre **todos los días**: actualiza los
+datos, recalcula la clasificación de mínimas y **solo si entra una fecha nueva
+en el top 10** manda la tabla por Telegram y guarda el ranking actualizado en
+el repo. Si no hay novedad no envía nada ni commitea: el silencio es el caso
+normal.
+
+Dos cosas que conviene saber:
+
+- **AEMET publica los valores climatológicos diarios con unos días de
+  retraso**, porque pasan por validación. El aviso llega cuando el dato es
+  firme, no la misma noche del récord.
+- La primera vez que corre, si no hay un ranking anterior con el que comparar,
+  no avisa de nada: crea la base y calla. Si no, anunciaría doce récords de
+  golpe.
+
+Con `forzar_envio` se manda la tabla aunque no haya novedades, para comprobar
+que el circuito funciona.
+
+El workflow mensual está programado **el día 3 de cada mes**. GitHub solo lanza los
 `cron` desde la rama por defecto del repositorio, así que si algún día mueves
 esto a otra rama, la tirada mensual se queda muda hasta que la fusiones.
 

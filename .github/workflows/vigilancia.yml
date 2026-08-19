@@ -1,0 +1,140 @@
+name: Vigilancia diaria del top 10
+
+# Mira cada día si ha entrado una temperatura nueva en la clasificación.
+# Si no hay novedad no envía nada ni commitea: el silencio es el caso normal.
+
+on:
+  workflow_dispatch:
+    inputs:
+      variable:
+        description: "Temperatura a vigilar"
+        type: choice
+        options: [tmin, tmax]
+        default: tmin
+      forzar_envio:
+        description: "Enviar la tabla aunque no haya entradas nuevas (para probar)"
+        type: boolean
+        default: false
+  schedule:
+    # A diario. AEMET publica los valores diarios con unos días de retraso,
+    # así que el aviso llega cuando el dato está validado, no la misma noche.
+    - cron: "40 6 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vigilancia-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  vigilar:
+    runs-on: ubuntu-latest
+    env:
+      AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
+      ESTACION: "8500A"
+      DESDE: "1990"
+      VARIABLE: ${{ inputs.variable || 'tmin' }}
+      CREDITO: "Gráfico: poloi@eurosky.social"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Comprobar que está la clave de AEMET
+        run: |
+          if [ -z "$AEMET_API_KEY" ]; then
+            echo "::error::Falta el secreto AEMET_API_KEY."
+            exit 1
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Recuperar la descarga cacheada
+        uses: actions/cache@v4
+        with:
+          path: datos/crudos
+          key: aemet-${{ env.ESTACION }}-${{ github.run_id }}
+          restore-keys: aemet-${{ env.ESTACION }}-
+
+      - name: Guardar el ranking anterior
+        run: |
+          set -euo pipefail
+          anterior="resultados/rankings/top10_$VARIABLE.csv"
+          if [ -f "$anterior" ]; then
+            cp "$anterior" /tmp/antes.csv
+            echo "Ranking anterior guardado."
+          else
+            echo "Todavía no hay ranking anterior; esta tirada solo crea la base."
+          fi
+
+      - name: Actualizar los datos y recalcular el top
+        run: |
+          set -euo pipefail
+          mkdir -p resultados/rankings
+          # El tramo en curso se vuelve a pedir solo; el resto sale de la caché.
+          python -m aemet_noches descargar --estacion "$ESTACION" --desde "$DESDE"
+          python -m aemet_noches extremos \
+            --estacion "$ESTACION" --variable "$VARIABLE" --desde "$DESDE" --top 10 \
+            --credito "$CREDITO" --temas claro oscuro \
+            --csv "resultados/rankings/top10_$VARIABLE.csv" \
+            --png "resultados/rankings/top10_${VARIABLE}_{tema}.png" \
+            | tee "resultados/rankings/top10_$VARIABLE.txt"
+
+      - name: ¿Ha entrado algo nuevo?
+        id: comparar
+        run: |
+          python scripts/vigilar_top.py --variable "$VARIABLE" \
+            --antes /tmp/antes.csv \
+            --despues "resultados/rankings/top10_$VARIABLE.csv"
+
+      - name: Avisar por Telegram
+        if: ${{ steps.comparar.outputs.nuevas != '0' || inputs.forzar_envio }}
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID || vars.TELEGRAM_CHAT_ID }}
+          AVISO: ${{ steps.comparar.outputs.texto }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
+            echo "::warning::Sin credenciales de Telegram: no se envía el aviso."
+            exit 0
+          fi
+          texto="${AVISO:-Tabla del top 10 (envío forzado, sin novedades).}"
+          python scripts/telegram.py --texto "$texto" \
+            "resultados/rankings/top10_${VARIABLE}_claro.png"
+
+      - name: Guardar el nuevo ranking en el repo
+        if: ${{ steps.comparar.outputs.nuevas != '0' }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f "resultados/rankings/top10_$VARIABLE."* \
+            "resultados/rankings/top10_${VARIABLE}_"*.png
+          if git diff --cached --quiet; then
+            echo "Sin cambios que guardar."
+            exit 0
+          fi
+          git commit -m "Nueva entrada en el top 10 de $VARIABLE ($ESTACION)"
+          for intento in 1 2 3 4; do
+            git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            sleep $((2 ** intento))
+          done
+          echo "::error::No se pudo subir el ranking actualizado"
+          exit 1
+
+      - name: Resumen
+        run: |
+          {
+            echo "## Vigilancia del top 10 ($VARIABLE)"
+            echo ""
+            if [ "${{ steps.comparar.outputs.nuevas }}" = "0" ]; then
+              echo "Sin novedades."
+            else
+              echo "**${{ steps.comparar.outputs.nuevas }} entrada(s) nueva(s).**"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
