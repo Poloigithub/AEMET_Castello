@@ -58,6 +58,7 @@ lluvia() {
   mkdir -p "$destino"
   python -m aemet_noches lluvia "${comunes[@]}" "${pintar[@]}" --temas "${TEMAS[@]}" \
     --csv "$destino/datos.csv" --png "$destino/mapa_{tema}.png" \
+    --png-rachas "$destino/rachas_{tema}.png" \
     | tee "$destino/resumen.txt"
 }
 

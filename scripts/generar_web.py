@@ -170,6 +170,11 @@ def construir() -> str:
         figura("resultados/rankings/top10_tmin", "Las noches más cálidas del registro",
                "Once de las doce más cálidas desde 1990 son de 2018 en adelante.",
                "resultados/rankings/top10_tmin.csv"),
+        figura("resultados/lluvia/rachas", "Cuánto aguanta sin llover",
+               "La racha más larga de cada año, en días seguidos con menos de un "
+               "milímetro. Aquí la barra sí arranca en cero, así que el doble de "
+               "barra son el doble de días.",
+               "resultados/lluvia/datos.csv"),
         figura("resultados/lluvia/mapa", "Lluvia mensual",
                "Precipitación acumulada por mes. En clima mediterráneo el total "
                "anual dice menos que el reparto: unos pocos días concentran buena "

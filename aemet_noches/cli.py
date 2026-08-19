@@ -195,6 +195,18 @@ def cmd_lluvia(args):
             serie, png, estacion=nombre, tema=tema, credito=args.credito,
         )
         print(f"Mapa guardado en {ruta}")
+    if args.png_rachas:
+        plantilla = args.png_rachas.stem
+        if "{tema}" not in plantilla and len(args.temas) > 1:
+            plantilla += "_{tema}"
+        for tema in args.temas:
+            png = args.png_rachas.with_name(
+                plantilla.replace("{tema}", tema) + args.png_rachas.suffix)
+            ruta = grafico.dibujar_tabla_rachas(
+                serie, png, estacion=nombre, umbral_lluvia=args.umbral_lluvia,
+                tema=tema, credito=args.credito,
+            )
+            print(f"Tabla de rachas guardada en {ruta}")
 
 
 def cmd_ultimo(args):
@@ -393,6 +405,9 @@ def construir_parser() -> argparse.ArgumentParser:
                     help="mm a partir de los cuales el día cuenta como lluvioso")
     sp.add_argument("--csv", type=Path, default=CARPETA_SALIDA / "lluvia.csv")
     sp.add_argument("--png", type=Path, default=CARPETA_SALIDA / "lluvia_{tema}.png")
+    sp.add_argument("--png-rachas", type=Path,
+                    default=CARPETA_SALIDA / "rachas_secas_{tema}.png",
+                    help="tabla año a año de la racha sin llover más larga")
     sp.add_argument("--temas", nargs="+", choices=sorted(grafico.TEMAS), default=["claro"])
     sp.add_argument("--nombre")
     sp.add_argument("--credito")

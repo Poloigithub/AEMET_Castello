@@ -79,3 +79,19 @@ def test_dibuja_el_mapa_de_lluvia(tmp_path, tema):
         serie, tmp_path / f"{tema}.png", estacion="PRUEBA", tema=tema, dpi=80
     )
     assert destino.exists() and destino.stat().st_size > 1000
+
+
+@pytest.mark.parametrize("tema", sorted(grafico.TEMAS))
+def test_dibuja_la_tabla_de_rachas(tmp_path, tema):
+    v = _anyo_seco(2019, {date(2019, 6, 1): 20.0})
+    v.update(_anyo_seco(2020, {date(2020, 3, 1): 20.0, date(2020, 9, 1): 8.0}))
+    serie = metricas.resumir_lluvia(v)
+    destino = grafico.dibujar_tabla_rachas(
+        serie, tmp_path / f"r_{tema}.png", estacion="PRUEBA", tema=tema, dpi=80
+    )
+    assert destino.exists() and destino.stat().st_size > 1000
+
+
+def test_la_tabla_de_rachas_vacia_da_error(tmp_path):
+    with pytest.raises(ValueError):
+        grafico.dibujar_tabla_rachas([], tmp_path / "x.png", estacion="PRUEBA")

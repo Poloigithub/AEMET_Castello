@@ -9,7 +9,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.colors import LinearSegmentedColormap  # noqa: E402
-from matplotlib.patches import Rectangle  # noqa: E402
+from matplotlib.patches import FancyBboxPatch, Rectangle  # noqa: E402
 
 from .metricas import MESES, ResumenAnual, ResumenTermico  # noqa: E402
 
@@ -856,6 +856,105 @@ def dibujar_lluvia(
             "días observados; su total se queda corto."
         )
     fig.text(izq / ancho, (0.14 + 0.08 * len(notas)) / alto, "\n".join(notas),
+             fontsize=5.6, color=t["apagado"], va="top", ha="left", linespacing=1.6)
+
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(destino, facecolor=t["fondo"])
+    plt.close(fig)
+    return destino
+
+
+def dibujar_tabla_rachas(
+    serie,
+    destino: Path,
+    estacion: str,
+    umbral_lluvia: float = 1.0,
+    tema: str = "claro",
+    credito: str | None = None,
+    cobertura_minima: float = 0.9,
+    dpi: int = 200,
+) -> Path:
+    """Un año por fila: la racha seca más larga, con barra desde cero.
+
+    Aquí la barra sí es honesta, al revés que en el top de temperaturas: los
+    valores van de veinte a más de cien días y el cero es un cero real, así
+    que el doble de barra es el doble de días.
+    """
+    from .metricas import MESES_LARGOS
+
+    if not serie:
+        raise ValueError("No hay años que dibujar")
+    t = TEMAS[tema]
+    acento = "#2a78d6" if tema == "claro" else "#3987e5"
+    wash = "#eaf2fd" if tema == "claro" else "#12243a"
+    n = len(serie)
+    maximo = max(r.racha_seca for r in serie) or 1
+    record = max(serie, key=lambda r: r.racha_seca).anyo
+
+    alto_fila = 0.245
+    izq, der = 0.55, 0.45
+    arriba, abajo = 1.15, 0.85
+    x_anyo, x_dias = izq + 0.42, izq + 1.05
+    x_barra, ancho_barra = izq + 1.20, 2.15
+    x_fecha = x_barra + ancho_barra + 0.15
+    ancho = x_fecha + 1.95 + der
+    alto = arriba + n * alto_fila + abajo
+
+    fig = plt.figure(figsize=(ancho, alto), dpi=dpi, facecolor=t["fondo"])
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.set_axis_off()
+    ax.set_xlim(0, ancho)
+    ax.set_ylim(0, alto)
+
+    y0 = abajo + n * alto_fila
+    for i, r in enumerate(serie, start=1):
+        y = y0 - i * alto_fila + alto_fila / 2
+        if r.anyo == record:
+            ax.add_patch(Rectangle(
+                (izq - 0.14, y - alto_fila / 2 + 0.02),
+                ancho - izq - der + 0.28, alto_fila - 0.04,
+                facecolor=wash, edgecolor="none", zorder=1))
+
+        etiqueta = str(r.anyo) + (" *" if r.cobertura < cobertura_minima else "")
+        ax.text(x_anyo, y, etiqueta, ha="right", va="center", zorder=2,
+                fontsize=6.8, color=t["tinta_2"])
+        ax.text(x_dias, y, str(r.racha_seca), ha="right", va="center", zorder=2,
+                fontsize=8, weight="bold", color=t["tinta"])
+
+        largo = ancho_barra * r.racha_seca / maximo
+        if largo > 0:
+            ax.add_patch(FancyBboxPatch(
+                (x_barra, y - 0.048), max(largo - 0.05, 0.01), 0.096,
+                boxstyle="round,pad=0.025,rounding_size=0.048",
+                facecolor=acento, edgecolor="none", zorder=2))
+        if r.racha_seca_fin:
+            fin = r.racha_seca_fin
+            ax.text(x_fecha, y,
+                    f"acabó el {fin.day} de {MESES_LARGOS[fin.month - 1]}",
+                    ha="left", va="center", zorder=2,
+                    fontsize=6.5, color=t["tinta_2"])
+
+    ax.text(x_dias, y0 + 0.10, "días", ha="right", va="bottom",
+            fontsize=6, color=t["apagado"])
+
+    titulo = fig.text(
+        izq / ancho, 1 - 0.30 / alto, f"Rachas sin llover en {estacion}",
+        fontsize=11.5, color=t["tinta"], va="top", ha="left", weight="bold")
+    _ajustar_a_lo_ancho(fig, titulo, ancho - izq - 0.3, minimo=7)
+    umbral_txt = f"{umbral_lluvia:g}".replace(".", ",")
+    subtitulo = fig.text(
+        izq / ancho, 1 - 0.56 / alto,
+        f"Días seguidos con menos de {umbral_txt} mm · la racha más larga de cada año",
+        fontsize=7.5, color=t["tinta_2"], va="top", ha="left")
+    _ajustar_a_lo_ancho(fig, subtitulo, ancho - izq - 0.3, minimo=5.8)
+
+    notas = ["Fuente: AEMET OpenData, valores climatológicos diarios."]
+    if any(r.cobertura < cobertura_minima for r in serie):
+        notas.insert(0, "* Años con menos del 90 % de días observados: un hueco "
+                        "corta la racha, así que la suya puede quedarse corta.")
+    if credito:
+        notas.insert(0, credito)
+    fig.text(izq / ancho, (0.14 + 0.09 * len(notas)) / alto, "\n".join(notas),
              fontsize=5.6, color=t["apagado"], va="top", ha="left", linespacing=1.6)
 
     destino.parent.mkdir(parents=True, exist_ok=True)
