@@ -34,6 +34,20 @@ def construir_media(ficheros: list[Path], como: str, texto: str | None) -> list[
     return media
 
 
+def enviar_texto(texto: str, token: str, chat: str, timeout: int = 60) -> None:
+    """Un aviso sin imagen, para cuando algo se ha roto y no hay nada que enseñar."""
+    respuesta = requests.post(
+        f"{API}/bot{token}/sendMessage",
+        data={"chat_id": chat, "text": texto, "disable_web_page_preview": "true"},
+        timeout=timeout,
+    )
+    if not respuesta.ok:
+        raise RuntimeError(
+            f"Telegram devolvió {respuesta.status_code}: {respuesta.text[:300]}"
+        )
+    print("Aviso de texto enviado a Telegram.")
+
+
 def enviar(
     ficheros: list[Path],
     token: str,
@@ -70,7 +84,7 @@ def enviar(
 
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description="Envía ficheros a un chat de Telegram")
-    p.add_argument("ficheros", nargs="+", type=Path)
+    p.add_argument("ficheros", nargs="*", type=Path)
     p.add_argument("--texto", help="texto que acompaña al primer fichero")
     p.add_argument("--como", choices=("document", "foto"), default="document")
     args = p.parse_args(argv)
@@ -84,6 +98,13 @@ def main(argv=None) -> int:
             file=sys.stderr,
         )
         return 1
+
+    if not args.ficheros:  # aviso de texto, sin adjuntos
+        if not args.texto:
+            print("Nada que enviar: ni ficheros ni texto.", file=sys.stderr)
+            return 1
+        enviar_texto(args.texto, token, chat)
+        return 0
 
     existentes = [f for f in args.ficheros if f.exists()]
     if faltan := [f for f in args.ficheros if not f.exists()]:

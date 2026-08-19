@@ -125,6 +125,22 @@ Dos límites que conviene tener presentes:
 
 Con `forzar_envio` manda la tabla aunque no haya novedades, para probar.
 
+### Si algo se rompe, también avisa
+
+Los dos workflows llevan un paso final que solo corre si la tirada ha
+fallado, y manda un aviso de texto por Telegram. Distingue el motivo:
+
+- falta el secreto `AEMET_API_KEY`;
+- ha fallado la petición a AEMET (lo más probable: **la clave ha caducado**);
+- ha fallado cualquier otro paso.
+
+Cada aviso lleva qué hacer y el enlace al run. Sin esto, una clave caducada
+dejaría el sistema mudo y el silencio parecería «no ha habido récord».
+
+El aviso es `continue-on-error`, así que si Telegram estuviera caído no
+enmascara el fallo real. Lo único que no puede avisarte por Telegram es que
+Telegram no funcione: eso se ve en la pestaña Actions.
+
 > GitHub solo lanza los `cron` desde la rama por defecto del repositorio. Si
 > algún día mueves esto a otra rama, los dos workflows se quedan mudos.
 

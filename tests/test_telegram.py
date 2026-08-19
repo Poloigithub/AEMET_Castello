@@ -74,3 +74,24 @@ def test_un_fichero_que_no_existe_no_aborta_el_resto(tmp_path, monkeypatch):
     )
     assert telegram.main([str(bueno), str(tmp_path / "no_esta.png")]) == 0
     assert enviados == [bueno]
+
+
+def test_aviso_sin_adjuntos_usa_sendmessage(monkeypatch):
+    llamadas = []
+
+    def post_falso(url, data, timeout):
+        llamadas.append((url, data))
+        return RespuestaFalsa()
+
+    monkeypatch.setattr(telegram.requests, "post", post_falso)
+    telegram.enviar_texto("se ha roto algo", "T0K3N", "-100")
+    url, data = llamadas[0]
+    assert url.endswith("/botT0K3N/sendMessage")
+    assert data["text"] == "se ha roto algo"
+
+
+def test_sin_ficheros_y_sin_texto_no_hace_nada(monkeypatch, capsys):
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "-1")
+    assert telegram.main([]) == 1
+    assert "Nada que enviar" in capsys.readouterr().err

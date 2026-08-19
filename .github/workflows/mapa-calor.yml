@@ -82,6 +82,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Comprobar que está la clave de AEMET
+        id: clave
         run: |
           if [ -z "$AEMET_API_KEY" ]; then
             echo "::error::Falta el secreto AEMET_API_KEY. Añádelo en Settings → \
@@ -116,6 +117,7 @@ jobs:
           echo "SLUG=$slug" >> "$GITHUB_ENV"
 
       - name: Descargar de AEMET y calcular
+        id: datos
         env:
           ESTRICTO: ${{ inputs.estricto }}
         run: |
@@ -256,3 +258,31 @@ jobs:
           done
           echo "::error::No se pudieron subir los resultados"
           exit 1
+
+      - name: Avisar del fallo por Telegram
+        if: failure()
+        continue-on-error: true   # si el aviso falla, no enmascara el fallo real
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID || vars.TELEGRAM_CHAT_ID }}
+          FALLO_CLAVE: ${{ steps.clave.outcome }}
+          FALLO_DATOS: ${{ steps.datos.outcome }}
+        run: |
+          set -uo pipefail
+          if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
+            echo "::warning::Sin credenciales de Telegram: no se avisa del fallo."
+            exit 0
+          fi
+          enlace="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          if [ "$FALLO_CLAVE" = "failure" ]; then
+            motivo="Falta el secreto AEMET_API_KEY en el repositorio."
+            arreglo="Añádelo en Settings → Secrets and variables → Actions."
+          elif [ "$FALLO_DATOS" = "failure" ]; then
+            motivo="Ha fallado la petición a AEMET. Lo más probable es que la clave API haya caducado."
+            arreglo="Pide una nueva en https://opendata.aemet.es/centrodedescargas/altaUsuario y actualiza el secreto AEMET_API_KEY."
+          else
+            motivo="Ha fallado un paso del workflow, y no ha sido la descarga de AEMET."
+            arreglo="Mira el log del run para ver qué ha pasado."
+          fi
+          texto="⛔ Informe mensual: la tirada ha fallado."$'\n\n'"$motivo"$'\n\n'"$arreglo"$'\n\n'"Run: $enlace"
+          python scripts/telegram.py --texto "$texto"
