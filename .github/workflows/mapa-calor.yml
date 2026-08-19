@@ -250,7 +250,12 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # La web se genera con el lote: si se queda sin registrar, el rebase
+          # posterior se niega a correr por tener cambios sin guardar.
           git add -f resultados/
+          for extra in index.html .nojekyll; do
+            if [ -e "$extra" ]; then git add -f "$extra"; fi
+          done
           if git diff --cached --quiet; then
             echo "Sin cambios en los resultados."
             exit 0
