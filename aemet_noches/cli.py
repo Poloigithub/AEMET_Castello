@@ -197,6 +197,17 @@ def cmd_extremos(args):
     if args.csv:
         metricas.guardar_csv_extremos(ranking, args.csv, columna=args.variable)
         print(f"\nCSV guardado en {args.csv}")
+    if args.png:
+        plantilla = args.png.stem
+        if "{tema}" not in plantilla and len(args.temas) > 1:
+            plantilla += "_{tema}"
+        for tema in args.temas:
+            png = args.png.with_name(plantilla.replace("{tema}", tema) + args.png.suffix)
+            ruta = grafico.dibujar_tabla_extremos(
+                ranking, png, estacion=nombre, variable=args.variable,
+                top=args.top, tema=tema, credito=args.credito,
+            )
+            print(f"Tabla guardada en {ruta}")
 
 
 def cmd_calcular(args):
@@ -331,7 +342,10 @@ def construir_parser() -> argparse.ArgumentParser:
         help="los valores más bajos en vez de los más altos",
     )
     sp.add_argument("--csv", type=Path, help="guarda el ranking en un CSV")
+    sp.add_argument("--png", type=Path, help="dibuja la tabla como imagen")
+    sp.add_argument("--temas", nargs="+", choices=sorted(grafico.TEMAS), default=["claro"])
     sp.add_argument("--nombre")
+    sp.add_argument("--credito")
     sp.set_defaults(func=cmd_extremos)
 
     sp = subs.add_parser(

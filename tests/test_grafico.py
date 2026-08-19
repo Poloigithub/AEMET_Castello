@@ -54,3 +54,21 @@ def test_el_titulo_cambia_con_el_umbral():
 def test_sin_anyos_da_error(tmp_path):
     with pytest.raises(ValueError):
         grafico.dibujar([], tmp_path / "x.png", estacion="PRUEBA")
+
+
+@pytest.mark.parametrize("tema", sorted(grafico.TEMAS))
+def test_dibuja_la_tabla_de_extremos(tmp_path, tema):
+    from datetime import date
+
+    ranking = [(date(2026, 7, 21), 27.4), (date(2025, 8, 11), 27.1),
+               (date(2023, 7, 20), 26.5), (date(2023, 7, 31), 26.5)]
+    destino = grafico.dibujar_tabla_extremos(
+        ranking, tmp_path / f"t_{tema}.png", estacion="PRUEBA", tema=tema,
+        top=3, dpi=80,
+    )
+    assert destino.exists() and destino.stat().st_size > 1000
+
+
+def test_la_tabla_vacia_da_error(tmp_path):
+    with pytest.raises(ValueError):
+        grafico.dibujar_tabla_extremos([], tmp_path / "x.png", estacion="PRUEBA")

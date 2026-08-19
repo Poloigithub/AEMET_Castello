@@ -53,7 +53,9 @@ ranking() {  # variable
   local destino="resultados/rankings"
   mkdir -p "$destino"
   python -m aemet_noches extremos "${comunes[@]}" --variable "$1" --top 10 \
-    --csv "$destino/top10_$1.csv" | tee "$destino/top10_$1.txt"
+    "${pintar[@]}" --temas "${TEMAS[@]}" \
+    --csv "$destino/top10_$1.csv" --png "$destino/top10_$1_{tema}.png" \
+    | tee "$destino/top10_$1.txt"
 }
 
 contar tmin 20   # noches tropicales
