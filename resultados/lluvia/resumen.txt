@@ -1,0 +1,46 @@
+Lluvia en 8500A  (día de lluvia = 1 mm o más)
+
+Año      Total  Días  Racha seca   Top 5
+1990      539mm    54       48 d     40%
+1991      492mm    59       33 d     33%
+1992      396mm    39       64 d     48%
+1993      260mm    34       47 d     43%
+1994      395mm    30       91 d     55%
+1995      264mm    41       64 d     33%
+1996      512mm    59       23 d     39%
+1997      349mm    54       48 d     35%
+1998      305mm    36       80 d     42%
+1999      267mm    36       54 d     51%
+2000      559mm    30       63 d     69%
+2001      444mm    46       40 d     43%
+2002      452mm    55       62 d     33%
+2003      579mm    54       48 d     41%
+2004      632mm    52       68 d     32%
+2005      466mm    40       43 d     59%
+2006      489mm    41       67 d     47%
+2007      609mm    48       56 d     43%
+2008      421mm    54       45 d     29%
+2009      568mm    49       38 d     60%
+2010      387mm    49       55 d     38%
+2011      513mm    51       37 d     42%
+2012      297mm    38       59 d     49%
+2013      325mm    38       72 d     49%
+2014      287mm    37       36 d     43%
+2015      453mm    30       42 d     57%
+2016      426mm    43      115 d     51%
+2017      330mm    28       65 d     68%
+2018      655mm    50       44 d     44%
+2019      331mm    27      107 d     63%
+2020      586mm    44       49 d     50%
+2021      422mm    54       31 d     33%
+2022      713mm    55       68 d     52%
+2023      307mm    24       72 d     68%
+2024      448mm    50       47 d     35%
+2025      669mm    52       35 d     44%
+2026      139mm    22       62 d     53% *
+
+* años con menos del 90 % de días observados.
+
+CSV guardado en resultados/lluvia/datos.csv
+Mapa guardado en resultados/lluvia/mapa_claro.png
+Mapa guardado en resultados/lluvia/mapa_oscuro.png
