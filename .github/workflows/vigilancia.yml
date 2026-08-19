@@ -34,7 +34,7 @@ jobs:
         variable: [tmin, tmax]
     name: vigilar ${{ matrix.variable }}
     env:
-      AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
+      AEMET_API_KEY: "clave-caducada-de-mentira"
       ESTACION: "8500A"
       DESDE: "1990"
       VARIABLE: ${{ matrix.variable }}
