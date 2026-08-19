@@ -1,0 +1,18 @@
+Las 10 noches de mínima más alta en Castelló - Almassora, 1990–2026
+
+  1.   27,4 °C   21 de julio de 2026
+  2.   27,1 °C   11 de agosto de 2025
+  3.   26,9 °C   19 de julio de 2026
+  4.   26,6 °C   13 de agosto de 2022
+  5.   26,5 °C   5 de agosto de 2018
+       26,5 °C   20 de julio de 2023
+  7.   26,4 °C   17 de julio de 2026
+       26,4 °C   18 de julio de 2026
+  9.   26,3 °C   22 de julio de 2026
+ 10.   26,2 °C   28 de julio de 2003
+       26,2 °C   16 de julio de 2023
+       26,2 °C   31 de julio de 2023
+
+(Son 12 y no 10 por empate en el último puesto.)
+
+CSV guardado en resultados/rankings/top10_tmin.csv

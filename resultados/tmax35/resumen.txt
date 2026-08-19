@@ -37,6 +37,6 @@ Año      Días  Cobertura
 2023        5      100%
 2024        2      100%
 2025        9      100%
-2026        7       61%  (año incompleto)
+2026        8       62%  (año incompleto)
 
 CSV guardado en resultados/tmax35/datos.csv
