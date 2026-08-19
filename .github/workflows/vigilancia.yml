@@ -1,16 +1,12 @@
 name: Vigilancia diaria del top 10
 
-# Mira cada día si ha entrado una temperatura nueva en la clasificación.
+# Mira cada día si ha entrado una temperatura nueva en la clasificación, en
+# dos trabajos paralelos: uno vigila las mínimas y otro las máximas.
 # Si no hay novedad no envía nada ni commitea: el silencio es el caso normal.
 
 on:
   workflow_dispatch:
     inputs:
-      variable:
-        description: "Temperatura a vigilar"
-        type: choice
-        options: [tmin, tmax]
-        default: tmin
       forzar_envio:
         description: "Enviar la tabla aunque no haya entradas nuevas (para probar)"
         type: boolean
@@ -30,11 +26,18 @@ concurrency:
 jobs:
   vigilar:
     runs-on: ubuntu-latest
+    strategy:
+      # Los dos rankings van en paralelo. Cada trabajo toca solo sus propios
+      # ficheros, así que aunque coincidan al hacer push no hay conflicto.
+      fail-fast: false
+      matrix:
+        variable: [tmin, tmax]
+    name: vigilar ${{ matrix.variable }}
     env:
       AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
       ESTACION: "8500A"
       DESDE: "1990"
-      VARIABLE: ${{ inputs.variable || 'tmin' }}
+      VARIABLE: ${{ matrix.variable }}
       CREDITO: "Gráfico: poloi@eurosky.social"
     steps:
       - uses: actions/checkout@v4
@@ -57,7 +60,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: datos/crudos
-          key: aemet-${{ env.ESTACION }}-${{ github.run_id }}
+          key: aemet-${{ env.ESTACION }}-${{ matrix.variable }}-${{ github.run_id }}
           restore-keys: aemet-${{ env.ESTACION }}-
 
       - name: Guardar el ranking anterior
