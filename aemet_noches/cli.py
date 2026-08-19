@@ -163,6 +163,42 @@ def cmd_lineas(args):
         print(f"Gráfico guardado en {ruta}")
 
 
+def cmd_extremos(args):
+    valores = datos.cargar_dias(args.carpeta, args.estacion, campo=args.variable)
+    if args.desde or args.hasta:
+        ini = args.desde.year if args.desde else -9999
+        fin = args.hasta.year if args.hasta else 9999
+        valores = {d: v for d, v in valores.items() if ini <= d.year <= fin}
+    ranking = metricas.extremos(valores, top=args.top, mayores=not args.menores)
+    if not ranking:
+        sys.exit("No hay datos para ese rango.")
+
+    que = "noches" if args.variable == "tmin" else "días"
+    cual = "mínima" if args.variable == "tmin" else "máxima"
+    orden = "más baja" if args.menores else "más alta"
+    nombre = args.nombre or datos.nombre_estacion(args.carpeta, args.estacion)
+    anyos = sorted({d.year for d in valores})
+    print(
+        f"Las {args.top} {que} de {cual} {orden} en {nombre}, "
+        f"{anyos[0]}–{anyos[-1]}\n"
+    )
+    puesto, anterior = 0, None
+    for i, (dia, valor) in enumerate(ranking, start=1):
+        if valor != anterior:
+            puesto, anterior = i, valor
+            marca = f"{puesto:>3}."
+        else:
+            marca = "    "  # empate: se deja el hueco en blanco
+        grados = f"{valor:.1f}".replace(".", ",")
+        print(f"{marca}  {grados:>5} °C   {metricas.fecha_larga(dia)}")
+    if len(ranking) > args.top:
+        print(f"\n(Son {len(ranking)} y no {args.top} por empate en el último puesto.)")
+
+    if args.csv:
+        metricas.guardar_csv_extremos(ranking, args.csv, columna=args.variable)
+        print(f"\nCSV guardado en {args.csv}")
+
+
 def cmd_calcular(args):
     minimas = datos.cargar_dias(args.carpeta, args.estacion, campo=args.variable)
     resumenes = metricas.contar(
@@ -282,6 +318,21 @@ def construir_parser() -> argparse.ArgumentParser:
     sp.add_argument("--nombre")
     sp.add_argument("--credito")
     sp.set_defaults(func=cmd_anomalias)
+
+    sp = subs.add_parser(
+        "extremos",
+        help="ranking de los días más cálidos (o más fríos) de toda la serie",
+    )
+    comunes(sp)
+    opcion_variable(sp)
+    sp.add_argument("--top", type=int, default=10, help="cuántos días (por defecto 10)")
+    sp.add_argument(
+        "--menores", action="store_true",
+        help="los valores más bajos en vez de los más altos",
+    )
+    sp.add_argument("--csv", type=Path, help="guarda el ranking en un CSV")
+    sp.add_argument("--nombre")
+    sp.set_defaults(func=cmd_extremos)
 
     sp = subs.add_parser(
         "lineas",

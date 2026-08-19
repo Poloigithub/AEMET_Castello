@@ -49,8 +49,17 @@ series() {  # variable
     --suavizado "$SUAVIZADO" --png "$lin/diaria_suave_{tema}.png"
 }
 
+ranking() {  # variable
+  local destino="resultados/rankings"
+  mkdir -p "$destino"
+  python -m aemet_noches extremos "${comunes[@]}" --variable "$1" --top 10 \
+    --csv "$destino/top10_$1.csv" | tee "$destino/top10_$1.txt"
+}
+
 contar tmin 20   # noches tropicales
 contar tmin 25   # noches tórridas
 contar tmax 35   # días de calor
 series tmin
 series tmax
+ranking tmin     # las noches más cálidas de la serie
+ranking tmax     # y los días más calurosos

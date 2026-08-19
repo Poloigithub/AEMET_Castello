@@ -64,3 +64,28 @@ def test_formatear_nombre_de_estacion():
     assert f("L'ALCORA") == "L'Alcora"
     assert f("VILA-REAL") == "Vila-real"          # grafía oficial, con minúscula
     assert f("EMBALSE DE MARIA CRISTINA") == "Embalse de Maria Cristina"
+
+
+def test_extremos_ordena_y_respeta_los_empates():
+    from aemet_noches.metricas import extremos, fecha_larga, guardar_csv_extremos
+
+    v = {date(2020, 1, i + 1): x for i, x in enumerate([5, 9, 9, 7, 9, 1])}
+    top = extremos(v, top=2)
+    assert [d.day for d, _ in top] == [2, 3, 5]        # tres nueves, no dos
+    assert all(x == 9 for _, x in top)
+    assert extremos(v, top=2, mayores=False) == [(date(2020, 1, 6), 1), (date(2020, 1, 1), 5)]
+    assert extremos({}, top=5) == []
+    assert fecha_larga(date(2003, 8, 12)) == "12 de agosto de 2003"
+
+
+def test_csv_de_extremos_comparte_puesto_en_los_empates(tmp_path):
+    import csv as _csv
+
+    from aemet_noches.metricas import extremos, guardar_csv_extremos
+
+    v = {date(2020, 1, i + 1): x for i, x in enumerate([9, 9, 7])}
+    destino = tmp_path / "r.csv"
+    guardar_csv_extremos(extremos(v, top=3), destino, columna="tmin")
+    filas = list(_csv.DictReader(destino.open(encoding="utf-8")))
+    assert [f["puesto"] for f in filas] == ["1", "1", "3"]
+    assert filas[0]["tmin"] == "9.0"

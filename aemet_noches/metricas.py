@@ -322,3 +322,56 @@ def suavizar(serie: list[float | None], ventana: int) -> list[float | None]:
         trozo = [v for v in serie[max(0, i - radio) : i + radio + 1] if v is not None]
         salida.append(sum(trozo) / len(trozo) if trozo else None)
     return salida
+
+
+MESES_LARGOS = [
+    "enero", "febrero", "marzo", "abril", "mayo", "junio",
+    "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+]
+
+
+def fecha_larga(dia: date) -> str:
+    """'12 de agosto de 2003'."""
+    return f"{dia.day} de {MESES_LARGOS[dia.month - 1]} de {dia.year}"
+
+
+def extremos(
+    valores: dict[date, float],
+    top: int = 10,
+    mayores: bool = True,
+) -> list[tuple[date, float]]:
+    """Los `top` días con el valor más alto (o más bajo con `mayores=False`).
+
+    Los empates en el último puesto entran todos: cortar por el número exacto
+    dejaría fuera días idénticos al décimo por puro orden alfabético de fecha.
+    """
+    if not valores:
+        return []
+    signo = -1 if mayores else 1
+    ordenado = sorted(valores.items(), key=lambda kv: (signo * kv[1], kv[0]))
+    if len(ordenado) <= top:
+        return ordenado
+    corte = ordenado[top - 1][1]
+    salida = list(ordenado[:top])
+    for dia, valor in ordenado[top:]:
+        if valor != corte:
+            break
+        salida.append((dia, valor))
+    return salida
+
+
+def guardar_csv_extremos(
+    ranking: list[tuple[date, float]], destino: Path, columna: str = "valor"
+) -> None:
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    with destino.open("w", newline="", encoding="utf-8") as f:
+        e = csv.writer(f)
+        e.writerow(["puesto", "fecha", columna])
+        puesto = 0
+        anterior = None
+        for i, (dia, valor) in enumerate(ranking, start=1):
+            # Los empates comparten puesto, como en cualquier clasificación.
+            if valor != anterior:
+                puesto = i
+                anterior = valor
+            e.writerow([puesto, dia.isoformat(), f"{valor:.1f}"])
