@@ -85,6 +85,8 @@ def nombre_del_fenomeno(
     if variable == "tmin" and not estricto and umbral == 25:
         return "Noches tórridas"
     signo = ">" if estricto else "≥"
+    if variable == "prec":
+        return f"Días de lluvia ({signo} {umbral:g} mm)".replace(".", ",")
     if variable == "tmax":
         return f"Días con máxima {signo} {umbral:g} °C".replace(".", ",")
     return f"Noches con mínima {signo} {umbral:g} °C".replace(".", ",")
@@ -200,7 +202,8 @@ def dibujar(
 
     # --- títulos y leyenda --------------------------------------------------
     signo = ">" if estricto else "≥"
-    que = "máxima" if variable == "tmax" else "mínima"
+    que = {"tmax": "máxima", "prec": "precipitación"}.get(variable, "mínima")
+    unidad = "mm" if variable == "prec" else "°C"
     umbral_txt = f"{umbral:g}".replace(".", ",")
     disponible = ancho - izq - 0.2
     titulo = fig.text(
@@ -210,7 +213,7 @@ def dibujar(
     )
     subtitulo = fig.text(
         izq / ancho, 1 - 0.55 / alto,
-        f"Días con temperatura {que} {signo} {umbral_txt} °C, por mes y año  ·  "
+        f"Días con {que} {signo} {umbral_txt} {unidad}, por mes y año  ·  "
         f"{resumenes[0].anyo}–{resumenes[-1].anyo}",
         fontsize=7, color=t["tinta_2"], va="top", ha="left",
     )
@@ -736,6 +739,124 @@ def dibujar_tabla_extremos(
         izq / ancho, (0.14 + 0.09 * len(notas)) / alto, "\n".join(notas),
         fontsize=5.6, color=t["apagado"], va="top", ha="left", linespacing=1.6,
     )
+
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(destino, facecolor=t["fondo"])
+    plt.close(fig)
+    return destino
+
+
+# Rampa secuencial azul para la lluvia: es el tono secuencial por defecto de
+# la paleta y, además, nadie lee el azul como "calor".
+RAMPA_LLUVIA = [
+    "#cde2fb", "#b7d3f6", "#9ec5f4", "#86b6ef", "#6da7ec", "#5598e7",
+    "#3987e5", "#2a78d6", "#256abf", "#1c5cab", "#184f95", "#104281", "#0d366b",
+]
+
+
+def dibujar_lluvia(
+    serie,
+    destino: Path,
+    estacion: str,
+    tema: str = "claro",
+    credito: str | None = None,
+    cobertura_minima: float = 0.9,
+    dpi: int = 200,
+) -> Path:
+    """Mapa de precipitación mensual en mm, con el total del año a la derecha."""
+    if not serie:
+        raise ValueError("No hay años que dibujar")
+    t = TEMAS[tema]
+    pasos = RAMPA_LLUVIA[:12] if tema == "claro" else list(reversed(RAMPA_LLUVIA[2:]))
+    mapa = LinearSegmentedColormap.from_list("lluvia", pasos)
+
+    n = len(serie)
+    maximo = max((max(r.por_mes) for r in serie), default=0) or 1
+
+    ancho_celda, alto_celda = 0.42, 0.21
+    izq, der = 0.72, 1.05
+    arriba, abajo = 1.35, 0.85
+    ancho = izq + 12 * ancho_celda + der
+    alto = arriba + n * alto_celda + abajo
+
+    fig = plt.figure(figsize=(ancho, alto), dpi=dpi, facecolor=t["fondo"])
+    ax = fig.add_axes(
+        [izq / ancho, abajo / alto, (12 * ancho_celda) / ancho, (n * alto_celda) / alto]
+    )
+    ax.set_facecolor(t["fondo"])
+    ax.set_xlim(0, 12)
+    ax.set_ylim(n, 0)
+    for lado in ax.spines.values():
+        lado.set_visible(False)
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+    hueco = 0.045
+    incompletos = []
+    for fila, r in enumerate(serie):
+        for mes in range(12):
+            x, y = mes + hueco, fila + hueco
+            w, h = 1 - 2 * hueco, 1 - 2 * hueco
+            mm = r.por_mes[mes]
+            color = t["vacio"] if mm < 0.05 else mapa(0.12 + 0.88 * mm / maximo)
+            ax.add_patch(Rectangle((x, y), w, h, facecolor=color, edgecolor="none"))
+            if mm >= 0.5:
+                ax.text(
+                    mes + 0.5, fila + 0.5, f"{mm:.0f}",
+                    ha="center", va="center", fontsize=5.0,
+                    color=_tinta_sobre(matplotlib.colors.to_hex(color), t),
+                )
+        etiqueta = str(r.anyo)
+        if r.cobertura < cobertura_minima:
+            etiqueta += " *"
+            incompletos.append(r.anyo)
+        ax.text(-0.25, fila + 0.5, etiqueta, ha="right", va="center",
+                fontsize=5.6, color=t["tinta_2"])
+        ax.text(12.25, fila + 0.5, f"{r.total:.0f}", ha="left", va="center",
+                fontsize=5.6, color=t["tinta"] if r.total else t["apagado"])
+
+    for mes, nombre in enumerate(MESES):
+        ax.text(mes + 0.5, -0.35, nombre, ha="center", va="bottom",
+                fontsize=5.6, color=t["apagado"])
+    ax.text(12.25, -0.35, "Año", ha="left", va="bottom", fontsize=5.6, color=t["apagado"])
+
+    titulo = fig.text(
+        izq / ancho, 1 - 0.32 / alto, f"Lluvia mensual en {estacion}",
+        fontsize=11, color=t["tinta"], va="top", ha="left", weight="bold",
+    )
+    _ajustar_a_lo_ancho(fig, titulo, ancho - izq - 0.2, minimo=7)
+    fig.text(
+        izq / ancho, 1 - 0.55 / alto,
+        f"Precipitación acumulada, en milímetros  ·  {serie[0].anyo}–{serie[-1].anyo}",
+        fontsize=7, color=t["tinta_2"], va="top", ha="left",
+    )
+
+    tira_izq, tira_ancho, tira_y = izq + 0.55, 1.30, 0.92
+    leyenda = fig.add_axes(
+        [tira_izq / ancho, 1 - tira_y / alto, tira_ancho / ancho, 0.08 / alto]
+    )
+    leyenda.imshow([[0.12 + 0.88 * i / 255 for i in range(256)]],
+                   aspect="auto", cmap=mapa, vmin=0, vmax=1)
+    leyenda.set_xticks([])
+    leyenda.set_yticks([])
+    for lado in leyenda.spines.values():
+        lado.set_visible(False)
+    fig.text((tira_izq - 0.07) / ancho, 1 - (tira_y - 0.005) / alto, "0 mm",
+             fontsize=5.6, color=t["apagado"], va="top", ha="right")
+    fig.text((tira_izq + tira_ancho + 0.07) / ancho, 1 - (tira_y - 0.005) / alto,
+             f"{maximo:.0f} mm en el mes",
+             fontsize=5.6, color=t["apagado"], va="top", ha="left")
+
+    notas = ["Fuente: AEMET OpenData, valores climatológicos diarios."]
+    if credito:
+        notas.insert(0, credito)
+    if incompletos:
+        notas.append(
+            f"* {len(incompletos)} año(s) con menos del {cobertura_minima:.0%} de "
+            "días observados; su total se queda corto."
+        )
+    fig.text(izq / ancho, (0.14 + 0.08 * len(notas)) / alto, "\n".join(notas),
+             fontsize=5.6, color=t["apagado"], va="top", ha="left", linespacing=1.6)
 
     destino.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(destino, facecolor=t["fondo"])

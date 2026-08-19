@@ -31,6 +31,7 @@ desde la línea de comandos.
 | **Mapa de anomalías** | ¿Está subiendo la temperatura? | `resultados/anomalias_tmin/`, `anomalias_tmax/` |
 | **Gráfico de líneas** | ¿Cómo va este año frente a todos los anteriores? | `resultados/lineas_tmin/`, `lineas_tmax/` |
 | **Tabla de extremos** | ¿Cuáles son los días más cálidos del registro? | `resultados/rankings/` |
+| **Lluvia** | ¿Cuánto llueve, cuándo, y en cuántos días? | `resultados/lluvia/`, `lluvia1/` |
 
 Cada carpeta lleva el CSV con los números, un `resumen.txt` y las imágenes en
 tema claro y oscuro.
@@ -70,6 +71,34 @@ Los diez días con la mínima (o la máxima) más alta de todo el registro. Los
 empates en el último puesto entran todos, y las filas del año más reciente van
 resaltadas. Sin barras: en una lista cuyos valores caben en un grado, una
 barra que no arranca en cero exagera diferencias de una décima.
+
+### Lluvia
+
+El mismo JSON de AEMET trae la precipitación, así que sale gratis. Además del
+mapa mensual de milímetros y del recuento de días de lluvia, el CSV lleva tres
+cosas que el total anual no cuenta:
+
+- **la racha seca más larga** de cada año, y el día en que se rompió;
+- **la torrencialidad**: qué fracción del año cayó en sus cinco días más
+  lluviosos, que en clima mediterráneo dice más que el total;
+- días de lluvia según el umbral que elijas (`--umbral-lluvia`).
+
+Un detalle que importa: AEMET marca como `Ip` («inapreciable») los días en que
+llovió menos de lo que el pluviómetro sabe medir. Eso es un día **con** dato y
+con 0,0 mm, no un hueco. Tratarlo como dato perdido cortaría rachas secas que
+sí existieron.
+
+## La web
+
+`scripts/generar_web.py` compone `index.html` a partir de los CSV: cifras
+destacadas, los gráficos y los enlaces a los datos. Se regenera en cada tirada
+mensual y se sirve con **GitHub Pages** desde la raíz del repositorio
+(Settings → Pages → Source: la rama, carpeta `/`). Usa Tailwind por CDN y
+cambia a tema oscuro según el navegador, sirviendo la versión oscura de cada
+gráfico con `<picture>`.
+
+Si un producto no está generado, su sección no aparece: nunca deja una imagen
+rota.
 
 ## Automatización en GitHub
 

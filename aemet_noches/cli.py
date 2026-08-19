@@ -163,6 +163,40 @@ def cmd_lineas(args):
         print(f"Gráfico guardado en {ruta}")
 
 
+def cmd_lluvia(args):
+    lluvia = datos.cargar_dias(args.carpeta, args.estacion, campo="prec")
+    serie = metricas.resumir_lluvia(
+        lluvia,
+        umbral_lluvia=args.umbral_lluvia,
+        desde_anyo=args.desde.year if args.desde else None,
+        hasta_anyo=args.hasta.year if args.hasta else None,
+    )
+    if not serie:
+        sys.exit("No hay datos de precipitación para ese rango.")
+    metricas.guardar_csv_lluvia(serie, args.csv)
+
+    print(f"Lluvia en {args.estacion}  (día de lluvia = {args.umbral_lluvia:g} mm o más)\n")
+    print(f"{'Año':<6}{'Total':>8}{'Días':>6}{'Racha seca':>12}{'Top 5':>8}")
+    for r in serie:
+        aviso = " *" if r.cobertura < 0.9 else ""
+        torr = f"{r.torrencialidad:.0%}" if r.torrencialidad is not None else "—"
+        print(f"{r.anyo:<6}{r.total:>7.0f}{'mm':>1}{r.dias_de_lluvia:>6}"
+              f"{r.racha_seca:>9} d{torr:>8}{aviso}")
+    print("\n* años con menos del 90 % de días observados.")
+    print(f"\nCSV guardado en {args.csv}")
+
+    nombre = args.nombre or datos.nombre_estacion(args.carpeta, args.estacion)
+    plantilla = args.png.stem
+    if "{tema}" not in plantilla and len(args.temas) > 1:
+        plantilla += "_{tema}"
+    for tema in args.temas:
+        png = args.png.with_name(plantilla.replace("{tema}", tema) + args.png.suffix)
+        ruta = grafico.dibujar_lluvia(
+            serie, png, estacion=nombre, tema=tema, credito=args.credito,
+        )
+        print(f"Mapa guardado en {ruta}")
+
+
 def cmd_ultimo(args):
     """El último día del que AEMET ya ha publicado dato, y cuánto se retrasa."""
     valores = datos.cargar_dias(args.carpeta, args.estacion, campo=args.variable)
@@ -240,8 +274,9 @@ def cmd_calcular(args):
     )
     metricas.guardar_csv(resumenes, args.csv)
     signo = ">" if args.estricto else "≥"
-    que = "máxima" if args.variable == "tmax" else "mínima"
-    print(f"Días con {que} {signo} {args.umbral:g} °C\n")
+    que = {"tmax": "máxima", "prec": "precipitación"}.get(args.variable, "mínima")
+    unidad = "mm" if args.variable == "prec" else "°C"
+    print(f"Días con {que} {signo} {args.umbral:g} {unidad}\n")
     print(f"{'Año':<6}{'Días':>7}{'Cobertura':>11}")
     for r in resumenes:
         aviso = "  (año incompleto)" if r.cobertura < 0.9 else ""
@@ -290,8 +325,8 @@ def construir_parser() -> argparse.ArgumentParser:
 
     def opcion_variable(sp):
         sp.add_argument(
-            "--variable", choices=("tmin", "tmax"), default="tmin",
-            help="temperatura mínima (por defecto) o máxima del día",
+            "--variable", choices=("tmin", "tmax", "prec"), default="tmin",
+            help="mínima (por defecto), máxima o precipitación del día",
         )
 
     def opciones_umbral(sp):
@@ -348,6 +383,20 @@ def construir_parser() -> argparse.ArgumentParser:
     sp.add_argument("--nombre")
     sp.add_argument("--credito")
     sp.set_defaults(func=cmd_anomalias)
+
+    sp = subs.add_parser(
+        "lluvia",
+        help="totales, días de lluvia, rachas secas y torrencialidad",
+    )
+    comunes(sp)
+    sp.add_argument("--umbral-lluvia", type=float, default=1.0, metavar="MM",
+                    help="mm a partir de los cuales el día cuenta como lluvioso")
+    sp.add_argument("--csv", type=Path, default=CARPETA_SALIDA / "lluvia.csv")
+    sp.add_argument("--png", type=Path, default=CARPETA_SALIDA / "lluvia_{tema}.png")
+    sp.add_argument("--temas", nargs="+", choices=sorted(grafico.TEMAS), default=["claro"])
+    sp.add_argument("--nombre")
+    sp.add_argument("--credito")
+    sp.set_defaults(func=cmd_lluvia)
 
     sp = subs.add_parser(
         "ultimo",

@@ -48,12 +48,23 @@ def formatear_nombre(bruto: str) -> str:
     return " ".join(salida)
 
 
-def _num(valor) -> float | None:
-    """AEMET usa coma decimal y marcas como 'Ip' para valores inapreciables."""
+def _num(valor, ip_es_cero: bool = False) -> float | None:
+    """AEMET usa coma decimal y marcas como 'Ip' para valores inapreciables.
+
+    En precipitación, `Ip` («inapreciable») significa que llovió menos de lo
+    que el pluviómetro sabe medir: es un día **con** dato y con 0,0 mm, no un
+    día perdido. Tratarlo como hueco descartaría cientos de días de lluvia
+    débil y falsearía las rachas secas. `Acum` es distinto: la cantidad se
+    sumó a otro día, así que ese día no tiene medida propia.
+    """
     if valor is None:
         return None
     texto = str(valor).strip().replace(",", ".")
-    if not texto or texto in {"Ip", "Acum", "Varias"}:
+    if not texto:
+        return None
+    if texto == "Ip":
+        return 0.0 if ip_es_cero else None
+    if texto in {"Acum", "Varias"}:
         return None
     try:
         return float(texto)
@@ -64,7 +75,7 @@ def _num(valor) -> float | None:
 def cargar_dias(
     carpeta: Path, estacion: str | None = None, campo: str = "tmin"
 ) -> dict[date, float]:
-    """Devuelve {fecha: valor} para el campo pedido ('tmin' o 'tmax').
+    """Devuelve {fecha: valor} para el campo pedido ('tmin', 'tmax' o 'prec').
 
     Si un día aparece en varios tramos (solapes), gana el último leído; los
     valores de AEMET son idénticos, así que da igual cuál.
@@ -79,7 +90,7 @@ def cargar_dias(
     for fichero in ficheros:
         registros = json.loads(fichero.read_text(encoding="utf-8"))
         for reg in registros:
-            valor = _num(reg.get(campo))
+            valor = _num(reg.get(campo), ip_es_cero=(campo == "prec"))
             if valor is None:
                 continue
             try:

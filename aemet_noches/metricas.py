@@ -375,3 +375,108 @@ def guardar_csv_extremos(
                 puesto = i
                 anterior = valor
             e.writerow([puesto, dia.isoformat(), f"{valor:.1f}"])
+
+
+@dataclass
+class ResumenLluvia:
+    """Lo que se puede decir de un año de precipitación."""
+
+    anyo: int
+    total: float = 0.0
+    por_mes: list[float] = field(default_factory=lambda: [0.0] * 12)
+    dias_con_dato: int = 0
+    dias_de_lluvia: int = 0          # >= 1 mm, el criterio habitual
+    racha_seca: int = 0              # días seguidos por debajo de 1 mm
+    racha_seca_fin: date | None = None
+    top5: float = 0.0                # mm caídos en los cinco días más lluviosos
+
+    @property
+    def dias_del_anyo(self) -> int:
+        return 366 if calendar.isleap(self.anyo) else 365
+
+    @property
+    def cobertura(self) -> float:
+        return self.dias_con_dato / self.dias_del_anyo
+
+    @property
+    def torrencialidad(self) -> float | None:
+        """Qué fracción del año cayó en sus cinco días más lluviosos."""
+        return self.top5 / self.total if self.total > 0 else None
+
+
+def resumir_lluvia(
+    precipitacion: dict[date, float],
+    umbral_lluvia: float = 1.0,
+    desde_anyo: int | None = None,
+    hasta_anyo: int | None = None,
+) -> list[ResumenLluvia]:
+    """Totales, días de lluvia, racha seca y torrencialidad, año a año.
+
+    La racha seca se mide sobre el calendario completo y puede cruzar el
+    cambio de año: se apunta en el año en que termina, que es cuando llueve
+    y se puede contar. Un hueco de datos la corta, porque no se puede afirmar
+    que no lloviera un día que nadie midió.
+    """
+    if not precipitacion:
+        return []
+    anyos = {d.year for d in precipitacion}
+    ini = desde_anyo if desde_anyo is not None else min(anyos)
+    fin = hasta_anyo if hasta_anyo is not None else max(anyos)
+    resumenes = {a: ResumenLluvia(a) for a in range(ini, fin + 1)}
+
+    por_anyo: dict[int, list[float]] = {}
+    for dia, mm in precipitacion.items():
+        r = resumenes.get(dia.year)
+        if r is None:
+            continue
+        r.dias_con_dato += 1
+        r.total += mm
+        r.por_mes[dia.month - 1] += mm
+        if mm >= umbral_lluvia:
+            r.dias_de_lluvia += 1
+        por_anyo.setdefault(dia.year, []).append(mm)
+
+    for anyo, lluvias in por_anyo.items():
+        resumenes[anyo].top5 = sum(sorted(lluvias, reverse=True)[:5])
+
+    # Racha seca: se recorre el calendario entero, en orden.
+    seguidos = 0
+    for dia in sorted(precipitacion):
+        if precipitacion[dia] < umbral_lluvia:
+            seguidos += 1
+            continue
+        r = resumenes.get(dia.year)
+        if r is not None and seguidos > r.racha_seca:
+            r.racha_seca, r.racha_seca_fin = seguidos, dia
+        seguidos = 0
+
+    serie = [resumenes[a] for a in sorted(resumenes)]
+    while serie and serie[0].dias_con_dato == 0:
+        serie.pop(0)
+    while serie and serie[-1].dias_con_dato == 0:
+        serie.pop()
+    return serie
+
+
+def guardar_csv_lluvia(serie: list[ResumenLluvia], destino: Path) -> None:
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    with destino.open("w", newline="", encoding="utf-8") as f:
+        e = csv.writer(f)
+        e.writerow(
+            ["anyo", "total_mm"]
+            + [f"mm_{m.lower()}" for m in MESES]
+            + ["dias_de_lluvia", "racha_seca", "racha_seca_fin",
+               "mm_top5", "torrencialidad", "dias_con_dato", "cobertura"]
+        )
+        for r in serie:
+            e.writerow(
+                [r.anyo, f"{r.total:.1f}"]
+                + [f"{v:.1f}" for v in r.por_mes]
+                + [
+                    r.dias_de_lluvia, r.racha_seca,
+                    r.racha_seca_fin.isoformat() if r.racha_seca_fin else "",
+                    f"{r.top5:.1f}",
+                    f"{r.torrencialidad:.3f}" if r.torrencialidad is not None else "",
+                    r.dias_con_dato, f"{r.cobertura:.3f}",
+                ]
+            )

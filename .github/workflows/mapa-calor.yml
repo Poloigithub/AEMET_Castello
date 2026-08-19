@@ -19,7 +19,7 @@ on:
       variable:
         description: "Temperatura del día a analizar"
         type: choice
-        options: [tmin, tmax]
+        options: [tmin, tmax, prec]
         default: tmin
       umbral:
         description: "Grados del umbral"
@@ -111,7 +111,11 @@ jobs:
         run: |
           set -euo pipefail
           # Cada umbral tiene su carpeta, así una tirada no pisa la anterior.
-          if [ "$VARIABLE" = "tmax" ]; then slug="tmax${UMBRAL//./_}"; else slug="min${UMBRAL//./_}"; fi
+          case "$VARIABLE" in
+            tmax) slug="tmax${UMBRAL//./_}" ;;
+            prec) slug="lluvia${UMBRAL//./_}" ;;
+            *)    slug="min${UMBRAL//./_}" ;;
+          esac
           if [ "$ESTRICTO" = "true" ]; then slug="$slug-estricto"; fi
           echo "SALIDA=resultados/$slug" >> "$GITHUB_ENV"
           echo "SLUG=$slug" >> "$GITHUB_ENV"

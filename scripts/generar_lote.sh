@@ -18,7 +18,11 @@ if [ -n "${HASTA:-}" ]; then comunes+=(--hasta "$HASTA"); fi
 
 contar() {  # variable umbral
   local variable=$1 umbral=$2 slug destino
-  if [ "$variable" = "tmax" ]; then slug="tmax${umbral}"; else slug="min${umbral}"; fi
+  case "$variable" in
+    tmax) slug="tmax${umbral}" ;;
+    prec) slug="lluvia${umbral}" ;;
+    *)    slug="min${umbral}" ;;
+  esac
   destino="resultados/$slug"
   mkdir -p "$destino"
   echo "→ $destino"
@@ -49,6 +53,14 @@ series() {  # variable
     --suavizado "$SUAVIZADO" --png "$lin/diaria_suave_{tema}.png"
 }
 
+lluvia() {
+  local destino="resultados/lluvia"
+  mkdir -p "$destino"
+  python -m aemet_noches lluvia "${comunes[@]}" "${pintar[@]}" --temas "${TEMAS[@]}" \
+    --csv "$destino/datos.csv" --png "$destino/mapa_{tema}.png" \
+    | tee "$destino/resumen.txt"
+}
+
 ranking() {  # variable
   local destino="resultados/rankings"
   mkdir -p "$destino"
@@ -65,3 +77,6 @@ series tmin
 series tmax
 ranking tmin     # las noches más cálidas de la serie
 ranking tmax     # y los días más calurosos
+contar prec 1    # días de lluvia
+lluvia           # totales, rachas secas y torrencialidad
+python scripts/generar_web.py
