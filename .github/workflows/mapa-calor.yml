@@ -54,8 +54,11 @@ on:
         type: boolean
         default: true
   schedule:
-    # Día 3 de cada mes. Ojo: GitHub solo lanza los cron de la rama por defecto.
-    - cron: "17 5 3 * *"
+    # Día 6 de cada mes: AEMET publica los valores diarios con unos tres días
+    # de retraso, así que el día 3 el mes anterior llegaría justo o incompleto.
+    # El 6 deja margen para que la fuente se retrase algún día más.
+    # Ojo: GitHub solo lanza los cron de la rama por defecto.
+    - cron: "17 5 6 * *"
 
 permissions:
   contents: write
@@ -218,9 +221,16 @@ jobs:
                    septiembre octubre noviembre diciembre)
           mes="${nombres[$(( 10#$(date +%m) - 1 ))]}"
           ultimo=$(python -m aemet_noches ultimo --variable "$VARIABLE")
+          # ¿Está cerrado el mes anterior? Si no, más vale decirlo que callarlo.
+          ultimo_iso=$(python -m aemet_noches ultimo --variable "$VARIABLE" --formato iso)
+          fin_mes_anterior=$(date -d "$(date +%Y-%m-01) -1 day" +%Y-%m-%d)
+          aviso=""
+          if [[ "$ultimo_iso" < "$fin_mes_anterior" ]]; then
+            aviso=$'\n'"⚠️ El mes anterior aún no está completo: faltan días por publicar."
+          fi
           # Solo se mandan los que existan; el script avisa de los que falten.
           python scripts/telegram.py \
-            --texto "$ESTACION · $mes de $(date +%Y)"$'\n'"Datos de AEMET publicados hasta el $ultimo." \
+            --texto "$ESTACION · $mes de $(date +%Y)"$'\n'"Datos de AEMET publicados hasta el $ultimo.$aviso" \
             resultados/lineas_tmax/diaria_suave_claro.png \
             resultados/min20/mapa_claro.png \
             resultados/min25/mapa_claro.png \

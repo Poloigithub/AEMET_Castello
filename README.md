@@ -89,7 +89,10 @@ una conversación.
 
 ### `mapa-calor.yml` — informe mensual
 
-Corre **el día 3 de cada mes** (y a mano desde *Run workflow*). Ejecuta
+Corre **el día 6 de cada mes** (y a mano desde *Run workflow*). El día 6 y no
+el 3 por el desfase de la fuente: AEMET publica con unos tres días de retraso,
+así que el día 3 el mes anterior llegaría justo o a medias. Si aun así falta
+algún día por publicar, el mensaje lo avisa en vez de callarlo. Ejecuta
 `scripts/generar_lote.sh`, que genera el juego completo, lo commitea en
 `resultados/` y manda seis gráficos por Telegram: la media móvil de 7 días,
 los mapas de tropicales, tórridas y días de 35, y las anomalías de mínimas y
@@ -113,7 +116,10 @@ golpe.
 Dos límites que conviene tener presentes:
 
 - **AEMET publica los valores diarios con unos días de retraso**, porque pasan
-  validación. El aviso llega cuando el dato es firme, no la misma noche.
+  validación —a 19 de agosto de 2026 iba **tres días** por detrás—. El aviso
+  llega cuando el dato es firme, no la misma noche. Cada mensaje dice hasta
+  qué día hay datos publicados, para poder distinguir «no ha habido récord»
+  de «el día del récord todavía no está publicado».
 - Sin ranking anterior con el que comparar no se avisa de nada: la primera
   tirada crea la base y calla, en vez de anunciar doce récords de golpe.
 
