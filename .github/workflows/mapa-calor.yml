@@ -217,9 +217,10 @@ jobs:
           nombres=(enero febrero marzo abril mayo junio julio agosto \
                    septiembre octubre noviembre diciembre)
           mes="${nombres[$(( 10#$(date +%m) - 1 ))]}"
+          ultimo=$(python -m aemet_noches ultimo --variable "$VARIABLE")
           # Solo se mandan los que existan; el script avisa de los que falten.
           python scripts/telegram.py \
-            --texto "$ESTACION · $mes de $(date +%Y) · datos de AEMET hasta hoy" \
+            --texto "$ESTACION · $mes de $(date +%Y)"$'\n'"Datos de AEMET publicados hasta el $ultimo." \
             resultados/lineas_tmax/diaria_suave_claro.png \
             resultados/min20/mapa_claro.png \
             resultados/min25/mapa_claro.png \

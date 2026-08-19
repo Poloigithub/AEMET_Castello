@@ -163,6 +163,20 @@ def cmd_lineas(args):
         print(f"Gráfico guardado en {ruta}")
 
 
+def cmd_ultimo(args):
+    """El último día del que AEMET ya ha publicado dato, y cuánto se retrasa."""
+    valores = datos.cargar_dias(args.carpeta, args.estacion, campo=args.variable)
+    if not valores:
+        sys.exit("No hay datos descargados.")
+    ultimo = max(valores)
+    desfase = (date.today() - ultimo).days
+    if args.formato == "iso":
+        print(ultimo.isoformat())
+        return
+    dias = "día" if desfase == 1 else "días"
+    print(f"{metricas.fecha_larga(ultimo)} ({desfase} {dias} de desfase)")
+
+
 def cmd_extremos(args):
     valores = datos.cargar_dias(args.carpeta, args.estacion, campo=args.variable)
     if args.desde or args.hasta:
@@ -193,6 +207,10 @@ def cmd_extremos(args):
         print(f"{marca}  {grados:>5} °C   {metricas.fecha_larga(dia)}")
     if len(ranking) > args.top:
         print(f"\n(Son {len(ranking)} y no {args.top} por empate en el último puesto.)")
+    ultimo = max(valores)
+    desfase = (date.today() - ultimo).days
+    print(f"\nÚltimo día con datos: {metricas.fecha_larga(ultimo)} "
+          f"({desfase} {'día' if desfase == 1 else 'días'} de desfase).")
 
     if args.csv:
         metricas.guardar_csv_extremos(ranking, args.csv, columna=args.variable)
@@ -330,6 +348,15 @@ def construir_parser() -> argparse.ArgumentParser:
     sp.add_argument("--nombre")
     sp.add_argument("--credito")
     sp.set_defaults(func=cmd_anomalias)
+
+    sp = subs.add_parser(
+        "ultimo",
+        help="último día con datos publicados y cuántos días lleva de retraso",
+    )
+    comunes(sp, con_fechas=False)
+    opcion_variable(sp)
+    sp.add_argument("--formato", choices=("humano", "iso"), default="humano")
+    sp.set_defaults(func=cmd_ultimo)
 
     sp = subs.add_parser(
         "extremos",

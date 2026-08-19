@@ -87,6 +87,14 @@ jobs:
             --png "resultados/rankings/top10_${VARIABLE}_{tema}.png" \
             | tee "resultados/rankings/top10_$VARIABLE.txt"
 
+      - name: Hasta qué día llegan los datos
+        id: cobertura
+        run: |
+          set -euo pipefail
+          ultimo=$(python -m aemet_noches ultimo --variable "$VARIABLE")
+          echo "Datos publicados hasta: $ultimo"
+          echo "ultimo=$ultimo" >> "$GITHUB_OUTPUT"
+
       - name: ¿Ha entrado algo nuevo?
         id: comparar
         run: |
@@ -107,6 +115,7 @@ jobs:
             exit 0
           fi
           texto="${AVISO:-Tabla del top 10 (envío forzado, sin novedades).}"
+          texto="$texto"$'\n\n'"Datos de AEMET publicados hasta el ${{ steps.cobertura.outputs.ultimo }}."
           python scripts/telegram.py --texto "$texto" \
             "resultados/rankings/top10_${VARIABLE}_claro.png"
 
@@ -134,6 +143,8 @@ jobs:
         run: |
           {
             echo "## Vigilancia del top 10 ($VARIABLE)"
+            echo ""
+            echo "Datos hasta el ${{ steps.cobertura.outputs.ultimo }}."
             echo ""
             if [ "${{ steps.comparar.outputs.nuevas }}" = "0" ]; then
               echo "Sin novedades."

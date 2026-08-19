@@ -89,3 +89,11 @@ def test_csv_de_extremos_comparte_puesto_en_los_empates(tmp_path):
     filas = list(_csv.DictReader(destino.open(encoding="utf-8")))
     assert [f["puesto"] for f in filas] == ["1", "1", "3"]
     assert filas[0]["tmin"] == "9.0"
+
+
+def test_el_ultimo_dia_es_el_maximo_de_las_fechas():
+    from aemet_noches.metricas import fecha_larga
+
+    valores = {date(2026, 8, 14): 26.0, date(2026, 8, 16): 25.0, date(2026, 8, 15): 24.0}
+    assert max(valores) == date(2026, 8, 16)
+    assert fecha_larga(max(valores)) == "16 de agosto de 2026"
