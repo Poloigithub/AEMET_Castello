@@ -7,11 +7,11 @@ Las 10 días de máxima más alta en Castelló - Almassora, 1990–2026
   5.   38,0 °C   23 de agosto de 2023
   6.   37,9 °C   13 de agosto de 2022
   7.   37,8 °C   26 de julio de 1990
-  8.   37,5 °C   29 de julio de 1991
+  8.   37,6 °C   20 de agosto de 2026
+  9.   37,5 °C   29 de julio de 1991
        37,5 °C   12 de agosto de 2021
- 10.   37,4 °C   15 de junio de 2003
 
-Último día con datos: 16 de agosto de 2026 (3 días de desfase).
+Último día con datos: 20 de agosto de 2026 (4 días de desfase).
 
 CSV guardado en resultados/rankings/top10_tmax.csv
 Tabla guardada en resultados/rankings/top10_tmax_claro.png
