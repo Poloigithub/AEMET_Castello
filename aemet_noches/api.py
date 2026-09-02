@@ -113,29 +113,32 @@ def pedir_tramo(
     estacion: str,
     desde: date,
     hasta: date,
-    minimo_dias: int = 8,
+    dias_fallidos: list[date] | None = None,
 ):
-    """Pide un tramo y, si AEMET lo rechaza, lo parte por la mitad.
+    """Pide un tramo; si AEMET lo rechaza, lo parte hasta aislar el día malo.
 
-    La API devuelve 400 con mensajes desconcertantes ("la fecha final no
-    puede ser mayor que la inicial") ante rangos que aceptó el día anterior.
-    No hay forma de saber desde fuera si es un límite no documentado o un
-    fallo pasajero, así que se prueba con la mitad antes de rendirse. Por
-    debajo de `minimo_dias` se deja de insistir: ahí el problema es otro y
-    conviene que se vea.
+    AEMET devuelve 400 con un mensaje engañoso ("la fecha final no puede ser
+    mayor que la inicial") cuando el rango contiene algún día que su API no
+    sabe servir. El rango entero se cae por un solo día enfermo, y el mensaje
+    no dice cuál. Partiendo por la mitad se acaba aislando: los días buenos
+    entran y los malos se apuntan en `dias_fallidos` para que quien llame
+    decida si es un dato perdido o una caída de la fuente.
     """
+    if dias_fallidos is None:
+        dias_fallidos = []
     try:
         return cliente.climatologia_diaria(estacion, desde, hasta)
     except SinDatos:
         return []
     except ErrorAemet:
-        if (hasta - desde).days <= minimo_dias:
-            raise
+        if desde >= hasta:          # ya no se puede partir más
+            dias_fallidos.append(desde)
+            LOG.warning("AEMET no sirve el día %s; se salta", desde)
+            return []
         medio = desde + (hasta - desde) / 2
-        LOG.warning("AEMET rechazó %s → %s; se parte en dos", desde, hasta)
-        izquierda = pedir_tramo(cliente, estacion, desde, medio, minimo_dias)
+        izquierda = pedir_tramo(cliente, estacion, desde, medio, dias_fallidos)
         derecha = pedir_tramo(
-            cliente, estacion, medio + timedelta(days=1), hasta, minimo_dias
+            cliente, estacion, medio + timedelta(days=1), hasta, dias_fallidos
         )
         return izquierda + derecha
 
@@ -176,7 +179,22 @@ def descargar_serie(
             LOG.debug("Tramo aún sin días publicables: %s", destino.name)
             continue
         LOG.info("Descargando %s → %s", desde, pedir_hasta)
-        datos = pedir_tramo(cliente, estacion, desde, pedir_hasta)
+        fallidos: list[date] = []
+        datos = pedir_tramo(cliente, estacion, desde, pedir_hasta, fallidos)
+        # Saltarse un día suelto es tolerable; saltarse el tramo entero es una
+        # caída de AEMET disfrazada de dato perdido, y eso tiene que doler.
+        del_tramo = (pedir_hasta - desde).days + 1
+        if fallidos and len(fallidos) > max(5, del_tramo * 0.2):
+            raise ErrorAemet(
+                f"AEMET rechazó {len(fallidos)} de los {del_tramo} días de "
+                f"{desde} → {pedir_hasta}. Eso no es un día suelto malo: "
+                "parece que su API no está sirviendo esta estación."
+            )
+        if fallidos:
+            LOG.warning(
+                "Días que AEMET no ha servido (%d): %s",
+                len(fallidos), ", ".join(d.isoformat() for d in fallidos),
+            )
         # El tramo en curso cambia de nombre cada día (acaba en «hoy»), así que
         # se barren las versiones anteriores del mismo tramo antes de escribir:
         # si no, la caché acumularía un fichero por día con los mismos datos.

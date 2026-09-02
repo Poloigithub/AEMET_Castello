@@ -108,35 +108,49 @@ def test_un_tramo_que_empieza_hoy_no_se_pide(tmp_path):
     assert pedidos == []
 
 
-def test_un_tramo_rechazado_se_parte_en_dos():
-    """AEMET rechaza rangos largos de forma caprichosa; se prueba con la mitad."""
+def test_se_aisla_el_dia_que_aemet_no_sabe_servir():
+    """Un día enfermo tumba el rango entero; partiendo se salva el resto."""
     from aemet_noches.api import ErrorAemet, pedir_tramo
 
-    pedidos: list = []
+    malo = date(2026, 7, 4)
 
-    class Quisquilloso:
+    class ConUnDiaRoto:
         espera = 0
 
         def climatologia_diaria(self, estacion, ini, fin):
-            pedidos.append((ini, fin))
-            if (fin - ini).days > 40:
+            if ini <= malo <= fin:
                 raise ErrorAemet("AEMET respondió 400: la fecha final...")
-            return [{"fecha": ini.isoformat(), "tmin": "10,0"}]
+            return [{"fecha": d.isoformat()} for d in _dias(ini, fin)]
 
-    datos = pedir_tramo(Quisquilloso(), "8500A", date(2026, 7, 1), date(2026, 9, 1))
-    assert len(datos) == 2                       # las dos mitades han entrado
-    assert pedidos[0] == (date(2026, 7, 1), date(2026, 9, 1))   # primero entero
-    assert all((f - i).days <= 40 for i, f in pedidos[1:])      # luego troceado
+    fallidos: list = []
+    datos = pedir_tramo(
+        ConUnDiaRoto(), "8500A", date(2026, 7, 1), date(2026, 7, 8), fallidos
+    )
+    assert fallidos == [malo]                       # solo se pierde ese día
+    fechas = {r["fecha"] for r in datos}
+    assert malo.isoformat() not in fechas
+    assert len(fechas) == 7                         # los otros siete, salvados
 
 
-def test_si_ni_partiendo_funciona_el_error_sale_a_la_luz():
-    from aemet_noches.api import ErrorAemet, pedir_tramo
+def _dias(ini, fin):
+    d = ini
+    while d <= fin:
+        yield d
+        d += timedelta(days=1)
 
-    class Roto:
+
+def test_si_falla_todo_el_tramo_no_se_disfraza_de_dato_perdido(tmp_path):
+    """Una caída de AEMET no puede pasar por 'no había datos'."""
+    from aemet_noches.api import ErrorAemet, descargar_serie
+
+    class Caido:
         espera = 0
 
         def climatologia_diaria(self, estacion, ini, fin):
-            raise ErrorAemet("AEMET respondió 401: clave inválida")
+            raise ErrorAemet("AEMET respondió 500")
 
-    with pytest.raises(ErrorAemet, match="401"):
-        pedir_tramo(Roto(), "8500A", date(2026, 7, 1), date(2026, 9, 1))
+    with pytest.raises(ErrorAemet, match="no está sirviendo"):
+        descargar_serie(
+            Caido(), "8500A", date(2026, 7, 1), date(2026, 9, 2),
+            tmp_path, meses_por_lote=6, hoy=date(2026, 9, 2),
+        )
