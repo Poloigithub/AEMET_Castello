@@ -55,6 +55,13 @@ jobs:
             --desde "$ayer" --hasta "$ayer" --forzar \
             --carpeta /tmp/prueba2 2>&1 | tail -3
 
+      - name: 3· ¿Qué rangos acepta?
+        id: rangos
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          python scripts/probar_rangos.py --estacion "$ESTACION" | tee /tmp/rangos.txt
+
       - name: Veredicto
         run: |
           clave="${{ steps.clave.outcome }}"
@@ -67,6 +74,14 @@ jobs:
             echo "| Clave (inventario de estaciones) | \`$clave\` |"
             echo "| Endpoint de climatologías diarias | \`$diarios\` |"
             echo ""
+            if [ -f /tmp/rangos.txt ]; then
+              echo "### Qué rangos acepta"
+              echo ""
+              echo '```'
+              cat /tmp/rangos.txt
+              echo '```'
+              echo ""
+            fi
             if [ "$clave" = "failure" ]; then
               echo "**La clave no funciona.** Hay que renovarla."
             elif [ "$diarios" = "failure" ]; then
