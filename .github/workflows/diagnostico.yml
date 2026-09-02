@@ -50,14 +50,23 @@ jobs:
           set -uo pipefail
           ayer=$(date -d "yesterday" +%Y-%m-%d)
           hace_un_mes=$(date -d "30 days ago" +%Y-%m-%d)
+          # Las dos pruebas se hacen siempre, pero el paso tiene que acabar en
+          # rojo si alguna falla. Sin esto el estado del paso lo daba el último
+          # comando de la tubería y un fallo pasaba por bueno, que ya despistó
+          # una vez leyendo este mismo diagnóstico.
+          fallos=0
           echo "— probando un solo día ($hace_un_mes) —"
           python -m aemet_noches descargar --estacion "$ESTACION" \
             --desde "$hace_un_mes" --hasta "$hace_un_mes" --forzar \
             --carpeta /tmp/prueba1 2>&1 | tail -3
+          [ "${PIPESTATUS[0]}" -eq 0 ] || fallos=$((fallos + 1))
           echo "— probando el día de ayer ($ayer) —"
           python -m aemet_noches descargar --estacion "$ESTACION" \
             --desde "$ayer" --hasta "$ayer" --forzar \
             --carpeta /tmp/prueba2 2>&1 | tail -3
+          [ "${PIPESTATUS[0]}" -eq 0 ] || fallos=$((fallos + 1))
+          echo "Pruebas fallidas: $fallos de 2"
+          [ "$fallos" -eq 0 ]
 
       - name: 3· ¿Qué rangos acepta?
         id: rangos
