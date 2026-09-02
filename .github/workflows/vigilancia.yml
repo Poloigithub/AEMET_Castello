@@ -27,9 +27,13 @@ jobs:
   vigilar:
     runs-on: ubuntu-latest
     strategy:
-      # Los dos rankings van en paralelo. Cada trabajo toca solo sus propios
-      # ficheros, así que aunque coincidan al hacer push no hay conflicto.
+      # Cada trabajo toca solo sus propios ficheros, así que aunque coincidan
+      # al hacer push no hay conflicto. Aun así van de uno en uno: los dos
+      # descargan la misma serie de AEMET, y lanzarlos a la vez duplicaba las
+      # peticiones en el mismo segundo contra una API que ya nos frena.
+      # Cuesta unos cuarenta segundos más y evita pegarle el doble.
       fail-fast: false
+      max-parallel: 1
       matrix:
         variable: [tmin, tmax]
     name: vigilar ${{ matrix.variable }}

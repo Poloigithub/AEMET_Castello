@@ -72,9 +72,14 @@ class ClienteAemet:
     # veces con minutos de diferencia: una funciona y otra no.
     SINTOMAS_DE_FRENO = ("la fecha final no puede ser mayor",)
 
+    # Cuando frena, AEMET no levanta la mano enseguida: se ha visto la misma
+    # petición servirse bien y, veinte minutos después, rechazarse. Así que la
+    # primera espera es de medio minuto, no de segundos.
+    ESPERA_INICIAL_FRENO = 30.0
+
     def recurso(self, ruta: str):
         """Pide `ruta` y devuelve ya el contenido del enlace `datos`."""
-        espera = max(self.espera, 5.0)
+        espera = self.ESPERA_INICIAL_FRENO
         for intento in range(1, self.reintentos + 1):
             sobre = self._json(self._get(BASE + ruta, con_clave=True))
             estado = sobre.get("estado")
