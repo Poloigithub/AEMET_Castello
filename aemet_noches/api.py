@@ -108,6 +108,38 @@ def tramos(ini: date, fin: date, meses: int = 6):
         actual = tope + timedelta(days=1)
 
 
+def pedir_tramo(
+    cliente: ClienteAemet,
+    estacion: str,
+    desde: date,
+    hasta: date,
+    minimo_dias: int = 8,
+):
+    """Pide un tramo y, si AEMET lo rechaza, lo parte por la mitad.
+
+    La API devuelve 400 con mensajes desconcertantes ("la fecha final no
+    puede ser mayor que la inicial") ante rangos que aceptó el día anterior.
+    No hay forma de saber desde fuera si es un límite no documentado o un
+    fallo pasajero, así que se prueba con la mitad antes de rendirse. Por
+    debajo de `minimo_dias` se deja de insistir: ahí el problema es otro y
+    conviene que se vea.
+    """
+    try:
+        return cliente.climatologia_diaria(estacion, desde, hasta)
+    except SinDatos:
+        return []
+    except ErrorAemet:
+        if (hasta - desde).days <= minimo_dias:
+            raise
+        medio = desde + (hasta - desde) / 2
+        LOG.warning("AEMET rechazó %s → %s; se parte en dos", desde, hasta)
+        izquierda = pedir_tramo(cliente, estacion, desde, medio, minimo_dias)
+        derecha = pedir_tramo(
+            cliente, estacion, medio + timedelta(days=1), hasta, minimo_dias
+        )
+        return izquierda + derecha
+
+
 def descargar_serie(
     cliente: ClienteAemet,
     estacion: str,
@@ -144,11 +176,7 @@ def descargar_serie(
             LOG.debug("Tramo aún sin días publicables: %s", destino.name)
             continue
         LOG.info("Descargando %s → %s", desde, pedir_hasta)
-        try:
-            datos = cliente.climatologia_diaria(estacion, desde, pedir_hasta)
-        except SinDatos:
-            LOG.info("  sin datos en ese tramo")
-            datos = []
+        datos = pedir_tramo(cliente, estacion, desde, pedir_hasta)
         # El tramo en curso cambia de nombre cada día (acaba en «hoy»), así que
         # se barren las versiones anteriores del mismo tramo antes de escribir:
         # si no, la caché acumularía un fichero por día con los mismos datos.

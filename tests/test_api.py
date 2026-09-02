@@ -1,5 +1,7 @@
 """Pruebas del troceado de fechas (no tocan la red)."""
 
+import pytest
+
 from datetime import date, timedelta
 
 from aemet_noches.api import tramos
@@ -104,3 +106,37 @@ def test_un_tramo_que_empieza_hoy_no_se_pide(tmp_path):
         tmp_path, meses_por_lote=6, hoy=hoy,
     )
     assert pedidos == []
+
+
+def test_un_tramo_rechazado_se_parte_en_dos():
+    """AEMET rechaza rangos largos de forma caprichosa; se prueba con la mitad."""
+    from aemet_noches.api import ErrorAemet, pedir_tramo
+
+    pedidos: list = []
+
+    class Quisquilloso:
+        espera = 0
+
+        def climatologia_diaria(self, estacion, ini, fin):
+            pedidos.append((ini, fin))
+            if (fin - ini).days > 40:
+                raise ErrorAemet("AEMET respondió 400: la fecha final...")
+            return [{"fecha": ini.isoformat(), "tmin": "10,0"}]
+
+    datos = pedir_tramo(Quisquilloso(), "8500A", date(2026, 7, 1), date(2026, 9, 1))
+    assert len(datos) == 2                       # las dos mitades han entrado
+    assert pedidos[0] == (date(2026, 7, 1), date(2026, 9, 1))   # primero entero
+    assert all((f - i).days <= 40 for i, f in pedidos[1:])      # luego troceado
+
+
+def test_si_ni_partiendo_funciona_el_error_sale_a_la_luz():
+    from aemet_noches.api import ErrorAemet, pedir_tramo
+
+    class Roto:
+        espera = 0
+
+        def climatologia_diaria(self, estacion, ini, fin):
+            raise ErrorAemet("AEMET respondió 401: clave inválida")
+
+    with pytest.raises(ErrorAemet, match="401"):
+        pedir_tramo(Roto(), "8500A", date(2026, 7, 1), date(2026, 9, 1))
