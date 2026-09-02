@@ -32,6 +32,10 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
 
+      - name: 0· ¿Qué clave hay puesta?
+        continue-on-error: true
+        run: python scripts/mirar_clave.py
+
       - name: 1· ¿Vale la clave? (endpoint de inventario)
         id: clave
         continue-on-error: true
