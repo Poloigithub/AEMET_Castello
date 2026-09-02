@@ -17,10 +17,16 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 import time
 from datetime import date, timedelta
+from pathlib import Path
 
-from aemet_noches.api import BASE, ClienteAemet
+# Se invoca como `python scripts/probar_rangos.py`, así que sys.path apunta a
+# scripts/ y no a la raíz del repo, donde vive el paquete.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from aemet_noches.api import BASE, ClienteAemet  # noqa: E402
 
 
 def probar(cliente: ClienteAemet, estacion: str, ini: date, fin: date):
@@ -58,6 +64,10 @@ def main() -> None:
     ayer = hoy - timedelta(days=1)
 
     casos: list[tuple[str, date, date]] = [
+        # El caso que destapó todo: este mismo día se sirvió bien a las 11:57
+        # y se rechazó a las 12:15. Si tras un rato de calma vuelve a ir, lo
+        # que había era una penalización por pedir demasiado.
+        ("el que va y viene", hoy - timedelta(days=30), hoy - timedelta(days=30)),
         # Longitud creciente desde un mismo arranque reciente: si hay un tope
         # de días por petición, aquí se ve dónde está.
         ("reciente, 1 día", ayer, ayer),
