@@ -131,7 +131,7 @@ jobs:
           if [ "$ESTRICTO" = "true" ]; then args+=(--estricto); fi
           fechas=(--desde "$DESDE")
           if [ -n "$HASTA" ]; then fechas+=(--hasta "$HASTA"); fi
-          python -m aemet_noches descargar --estacion "$ESTACION" "${fechas[@]}"
+          python -m aemet_noches descargar --estacion "$ESTACION" "${fechas[@]}" 2>&1 | tee /tmp/aemet.log
           python -m aemet_noches calcular "${args[@]}" "${fechas[@]}" \
             --csv "$SALIDA/datos.csv" | tee "$SALIDA/resumen.txt"
 
@@ -287,8 +287,12 @@ jobs:
             motivo="Falta el secreto AEMET_API_KEY en el repositorio."
             arreglo="Añádelo en Settings → Secrets and variables → Actions."
           elif [ "$FALLO_DATOS" = "failure" ]; then
-            motivo="Ha fallado la petición a AEMET. Lo más probable es que la clave API haya caducado."
-            arreglo="Pide una nueva en https://opendata.aemet.es/centrodedescargas/altaUsuario y actualiza el secreto AEMET_API_KEY."
+            motivo="Ha fallado la petición a AEMET."
+            if [ -f /tmp/aemet.log ]; then
+              # Mejor citar lo que dijo AEMET que adivinar la causa.
+              motivo="$motivo"$'\n'"$(grep -i 'AEMET respondió\|Error\|contactar' /tmp/aemet.log | tail -2)"
+            fi
+            arreglo="Si habla de la clave, pide una nueva en https://opendata.aemet.es/centrodedescargas/altaUsuario y actualiza el secreto AEMET_API_KEY. Si no, mira el log del run."
           else
             motivo="Ha fallado un paso del workflow, y no ha sido la descarga de AEMET."
             arreglo="Mira el log del run para ver qué ha pasado."

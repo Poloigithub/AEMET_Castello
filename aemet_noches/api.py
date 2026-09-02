@@ -134,9 +134,18 @@ def descargar_serie(
         if destino.exists() and not forzar and hasta < hoy:
             LOG.debug("Ya estaba: %s", destino.name)
             continue
-        LOG.info("Descargando %s → %s", desde, hasta)
+        # A AEMET no se le pide nunca hasta hoy: la petición lleva la hora
+        # 23:59 y eso es futuro hasta la medianoche, lo que la API rechaza con
+        # un 400 desconcertante ("la fecha final no puede ser mayor que la
+        # inicial"). Como además publica con días de retraso, pedir hasta ayer
+        # no pierde ni un dato.
+        pedir_hasta = min(hasta, hoy - timedelta(days=1))
+        if desde > pedir_hasta:
+            LOG.debug("Tramo aún sin días publicables: %s", destino.name)
+            continue
+        LOG.info("Descargando %s → %s", desde, pedir_hasta)
         try:
-            datos = cliente.climatologia_diaria(estacion, desde, hasta)
+            datos = cliente.climatologia_diaria(estacion, desde, pedir_hasta)
         except SinDatos:
             LOG.info("  sin datos en ese tramo")
             datos = []

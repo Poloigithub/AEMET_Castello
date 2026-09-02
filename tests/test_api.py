@@ -56,11 +56,13 @@ def test_el_tramo_en_curso_se_vuelve_a_pedir(tmp_path):
             _cliente_falso(pedidos), "8500A", date(2026, 1, 1), hoy,
             tmp_path, meses_por_lote=6, hoy=hoy,
         )
-    # El primer semestre (cerrado) se pide una vez; el que llega a hoy, las dos.
-    cerrados = [p for p in pedidos if p[1] < hoy]
-    en_curso = [p for p in pedidos if p[1] >= hoy]
-    assert len(cerrados) == 1
-    assert len(en_curso) == 2
+    # El semestre cerrado se pide una sola vez; el abierto, en las dos tiradas.
+    # Se distinguen por el día en que empiezan, no por el final: desde que no
+    # se pide "hasta hoy", todos los tramos acaban en el pasado.
+    cerrado = [p for p in pedidos if p[0] == date(2026, 1, 1)]
+    abierto = [p for p in pedidos if p[0] == date(2026, 7, 1)]
+    assert len(cerrado) == 1
+    assert len(abierto) == 2
 
 
 def test_no_se_acumulan_versiones_del_tramo_en_curso(tmp_path):
@@ -75,3 +77,30 @@ def test_no_se_acumulan_versiones_del_tramo_en_curso(tmp_path):
         )
     ficheros = sorted(p.name for p in tmp_path.glob("*.json"))
     assert ficheros == ["8500A_20260701_20260820.json"]
+
+
+def test_nunca_se_pide_a_aemet_hasta_hoy(tmp_path):
+    """La hora 23:59 de hoy es futuro y AEMET responde 400 a eso."""
+    from aemet_noches.api import descargar_serie
+
+    hoy = date(2026, 9, 2)
+    pedidos: list = []
+    descargar_serie(
+        _cliente_falso(pedidos), "8500A", date(2026, 1, 1), hoy,
+        tmp_path, meses_por_lote=6, hoy=hoy,
+    )
+    assert all(fin < hoy for _, fin in pedidos), pedidos
+    assert max(fin for _, fin in pedidos) == date(2026, 9, 1)   # hasta ayer
+
+
+def test_un_tramo_que_empieza_hoy_no_se_pide(tmp_path):
+    """Sin días publicables no hay nada que pedir, y menos un rango invertido."""
+    from aemet_noches.api import descargar_serie
+
+    hoy = date(2026, 7, 1)
+    pedidos: list = []
+    descargar_serie(
+        _cliente_falso(pedidos), "8500A", date(2026, 7, 1), hoy,
+        tmp_path, meses_por_lote=6, hoy=hoy,
+    )
+    assert pedidos == []
