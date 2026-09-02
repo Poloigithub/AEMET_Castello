@@ -1,0 +1,78 @@
+name: Diagnóstico de AEMET
+
+# Separa dos cosas que se confunden cuando algo falla: si el problema es la
+# clave o si es el endpoint de climatologías diarias. Se lanza a mano.
+#
+# - El inventario de estaciones usa la misma clave y otro endpoint.
+#   Si responde, la clave es buena y el problema está en los datos diarios.
+# - La descarga de un solo día prueba el endpoint que falla, con el rango
+#   más corto posible.
+
+on:
+  workflow_dispatch:
+    inputs:
+      estacion:
+        description: "Estación a probar"
+        default: "8500A"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnosticar:
+    runs-on: ubuntu-latest
+    env:
+      AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
+      ESTACION: ${{ inputs.estacion || '8500A' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      - name: 1· ¿Vale la clave? (endpoint de inventario)
+        id: clave
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          python -m aemet_noches estaciones --provincia CASTELLON 2>&1 | head -5
+
+      - name: 2· ¿Responde el endpoint de diarios? (un solo día)
+        id: diarios
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          ayer=$(date -d "yesterday" +%Y-%m-%d)
+          hace_un_mes=$(date -d "30 days ago" +%Y-%m-%d)
+          echo "— probando un solo día ($hace_un_mes) —"
+          python -m aemet_noches descargar --estacion "$ESTACION" \
+            --desde "$hace_un_mes" --hasta "$hace_un_mes" --forzar \
+            --carpeta /tmp/prueba1 2>&1 | tail -3
+          echo "— probando el día de ayer ($ayer) —"
+          python -m aemet_noches descargar --estacion "$ESTACION" \
+            --desde "$ayer" --hasta "$ayer" --forzar \
+            --carpeta /tmp/prueba2 2>&1 | tail -3
+
+      - name: Veredicto
+        run: |
+          clave="${{ steps.clave.outcome }}"
+          diarios="${{ steps.diarios.outcome }}"
+          {
+            echo "## Diagnóstico"
+            echo ""
+            echo "| Prueba | Resultado |"
+            echo "|---|---|"
+            echo "| Clave (inventario de estaciones) | \`$clave\` |"
+            echo "| Endpoint de climatologías diarias | \`$diarios\` |"
+            echo ""
+            if [ "$clave" = "failure" ]; then
+              echo "**La clave no funciona.** Hay que renovarla."
+            elif [ "$diarios" = "failure" ]; then
+              echo "**La clave es buena y el endpoint de diarios falla.**"
+              echo "El problema está en AEMET, no en el repositorio."
+            else
+              echo "**Todo responde.** Si la tirada normal falla, es otra cosa."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
