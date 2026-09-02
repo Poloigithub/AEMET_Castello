@@ -66,16 +66,36 @@ class ClienteAemet:
         except json.JSONDecodeError as exc:
             raise ErrorAemet(f"Respuesta no JSON de AEMET: {r.text[:200]!r}") from exc
 
+    # AEMET no siempre dice "429" cuando le pides demasiado deprisa: a veces
+    # responde 400 con este mensaje sobre las fechas, que no tiene nada que
+    # ver con las fechas enviadas. Se ha comprobado pidiendo el mismo día dos
+    # veces con minutos de diferencia: una funciona y otra no.
+    SINTOMAS_DE_FRENO = ("la fecha final no puede ser mayor",)
+
     def recurso(self, ruta: str):
         """Pide `ruta` y devuelve ya el contenido del enlace `datos`."""
-        sobre = self._json(self._get(BASE + ruta, con_clave=True))
-        estado = sobre.get("estado")
-        if estado == 404:
-            raise SinDatos(sobre.get("descripcion", "sin datos"))
-        if estado != 200 or "datos" not in sobre:
-            raise ErrorAemet(f"AEMET respondió {estado}: {sobre.get('descripcion')}")
-        time.sleep(self.espera)
-        return self._json(self._get(sobre["datos"], con_clave=False))
+        espera = max(self.espera, 5.0)
+        for intento in range(1, self.reintentos + 1):
+            sobre = self._json(self._get(BASE + ruta, con_clave=True))
+            estado = sobre.get("estado")
+            descripcion = str(sobre.get("descripcion", ""))
+            if estado == 404:
+                raise SinDatos(descripcion or "sin datos")
+            if estado == 200 and "datos" in sobre:
+                time.sleep(self.espera)
+                return self._json(self._get(sobre["datos"], con_clave=False))
+            frenando = estado == 429 or any(
+                sintoma in descripcion.lower() for sintoma in self.SINTOMAS_DE_FRENO
+            )
+            if not frenando or intento == self.reintentos:
+                raise ErrorAemet(f"AEMET respondió {estado}: {descripcion}")
+            LOG.warning(
+                "AEMET nos está frenando (%s). Esperando %.0fs antes de reintentar",
+                descripcion or estado, espera,
+            )
+            time.sleep(espera)
+            espera *= 2
+        raise ErrorAemet("AEMET no respondió bien tras varios reintentos")
 
     # -- endpoints concretos -------------------------------------------------
 
@@ -106,41 +126,6 @@ def tramos(ini: date, fin: date, meses: int = 6):
         tope = min(siguiente - timedelta(days=1), fin)
         yield actual, tope
         actual = tope + timedelta(days=1)
-
-
-def pedir_tramo(
-    cliente: ClienteAemet,
-    estacion: str,
-    desde: date,
-    hasta: date,
-    dias_fallidos: list[date] | None = None,
-):
-    """Pide un tramo; si AEMET lo rechaza, lo parte hasta aislar el día malo.
-
-    AEMET devuelve 400 con un mensaje engañoso ("la fecha final no puede ser
-    mayor que la inicial") cuando el rango contiene algún día que su API no
-    sabe servir. El rango entero se cae por un solo día enfermo, y el mensaje
-    no dice cuál. Partiendo por la mitad se acaba aislando: los días buenos
-    entran y los malos se apuntan en `dias_fallidos` para que quien llame
-    decida si es un dato perdido o una caída de la fuente.
-    """
-    if dias_fallidos is None:
-        dias_fallidos = []
-    try:
-        return cliente.climatologia_diaria(estacion, desde, hasta)
-    except SinDatos:
-        return []
-    except ErrorAemet:
-        if desde >= hasta:          # ya no se puede partir más
-            dias_fallidos.append(desde)
-            LOG.warning("AEMET no sirve el día %s; se salta", desde)
-            return []
-        medio = desde + (hasta - desde) / 2
-        izquierda = pedir_tramo(cliente, estacion, desde, medio, dias_fallidos)
-        derecha = pedir_tramo(
-            cliente, estacion, medio + timedelta(days=1), hasta, dias_fallidos
-        )
-        return izquierda + derecha
 
 
 def descargar_serie(
@@ -179,25 +164,13 @@ def descargar_serie(
             LOG.debug("Tramo aún sin días publicables: %s", destino.name)
             continue
         LOG.info("Descargando %s → %s", desde, pedir_hasta)
-        fallidos: list[date] = []
-        datos = pedir_tramo(cliente, estacion, desde, pedir_hasta, fallidos)
-        # Saltarse un día suelto es tolerable; saltarse el tramo entero es una
-        # caída de AEMET disfrazada de dato perdido, y eso tiene que doler.
-        del_tramo = (pedir_hasta - desde).days + 1
-        if fallidos and len(fallidos) > max(5, del_tramo * 0.2):
-            raise ErrorAemet(
-                f"AEMET rechazó {len(fallidos)} de los {del_tramo} días de "
-                f"{desde} → {pedir_hasta}. Eso no es un día suelto malo: "
-                "parece que su API no está sirviendo esta estación."
-            )
-        if fallidos:
-            LOG.warning(
-                "Días que AEMET no ha servido (%d): %s",
-                len(fallidos), ", ".join(d.isoformat() for d in fallidos),
-            )
-        # El tramo en curso cambia de nombre cada día (acaba en «hoy»), así que
-        # se barren las versiones anteriores del mismo tramo antes de escribir:
-        # si no, la caché acumularía un fichero por día con los mismos datos.
+        try:
+            datos = cliente.climatologia_diaria(estacion, desde, pedir_hasta)
+        except SinDatos:
+            LOG.info("  sin datos en ese tramo")
+            datos = []
+        # El tramo abierto cambia de nombre cada día (su fecha final avanza).
+        # Sin esto la caché acumularía una copia por día de la misma cosa.
         for viejo in carpeta.glob(f"{estacion}_{desde:%Y%m%d}_*.json"):
             if viejo != destino:
                 viejo.unlink()

@@ -1,4 +1,6 @@
-"""Pruebas del troceado de fechas (no tocan la red)."""
+"""Pruebas del troceado de fechas y del trato con AEMET (no tocan la red)."""
+
+import json
 
 import pytest
 
@@ -108,35 +110,49 @@ def test_un_tramo_que_empieza_hoy_no_se_pide(tmp_path):
     assert pedidos == []
 
 
-def test_se_aisla_el_dia_que_aemet_no_sabe_servir():
-    """Un día enfermo tumba el rango entero; partiendo se salva el resto."""
-    from aemet_noches.api import ErrorAemet, pedir_tramo
+def _cliente_con_sobres(sobres, monkeypatch):
+    """Devuelve un ClienteAemet que consume `sobres` en vez de llamar a la red."""
+    from aemet_noches import api
 
-    malo = date(2026, 7, 4)
+    pendientes = list(sobres)
+    esperas: list[float] = []
 
-    class ConUnDiaRoto:
-        espera = 0
+    def falso_get(self, url, con_clave):
+        class R:
+            encoding = "utf-8"
+            text = json.dumps(pendientes.pop(0))
+        return R()
 
-        def climatologia_diaria(self, estacion, ini, fin):
-            if ini <= malo <= fin:
-                raise ErrorAemet("AEMET respondió 400: la fecha final...")
-            return [{"fecha": d.isoformat()} for d in _dias(ini, fin)]
+    monkeypatch.setattr(api.ClienteAemet, "_get", falso_get)
+    monkeypatch.setattr(api.time, "sleep", esperas.append)
+    return api.ClienteAemet(api_key="x", espera=0.1), esperas
 
-    fallidos: list = []
-    datos = pedir_tramo(
-        ConUnDiaRoto(), "8500A", date(2026, 7, 1), date(2026, 7, 8), fallidos
+
+def test_el_400_enganoso_de_fechas_se_trata_como_freno(monkeypatch):
+    """AEMET frena con un 400 que habla de fechas: hay que esperar y reintentar."""
+    freno = {"estado": 400, "descripcion": "La fecha final no puede ser mayor que la fecha inicial"}
+    bueno = {"estado": 200, "datos": "https://ejemplo/datos"}
+    cliente, esperas = _cliente_con_sobres(
+        [freno, freno, bueno, [{"fecha": "2026-07-01"}]], monkeypatch
     )
-    assert fallidos == [malo]                       # solo se pierde ese día
-    fechas = {r["fecha"] for r in datos}
-    assert malo.isoformat() not in fechas
-    assert len(fechas) == 7                         # los otros siete, salvados
+
+    datos = cliente.recurso("/loquesea")
+
+    assert datos == [{"fecha": "2026-07-01"}]
+    # Dos frenos, dos esperas largas, y la segunda mayor que la primera.
+    largas = [e for e in esperas if e >= 5]
+    assert len(largas) == 2 and largas[1] > largas[0]
 
 
-def _dias(ini, fin):
-    d = ini
-    while d <= fin:
-        yield d
-        d += timedelta(days=1)
+def test_un_error_de_verdad_no_se_reintenta(monkeypatch):
+    """Solo se insiste ante un freno; un 401 de clave caducada falla ya."""
+    from aemet_noches.api import ErrorAemet
+
+    cliente, _ = _cliente_con_sobres(
+        [{"estado": 401, "descripcion": "API key caducada"}], monkeypatch
+    )
+    with pytest.raises(ErrorAemet, match="401"):
+        cliente.recurso("/loquesea")
 
 
 def test_si_falla_todo_el_tramo_no_se_disfraza_de_dato_perdido(tmp_path):
@@ -149,7 +165,7 @@ def test_si_falla_todo_el_tramo_no_se_disfraza_de_dato_perdido(tmp_path):
         def climatologia_diaria(self, estacion, ini, fin):
             raise ErrorAemet("AEMET respondió 500")
 
-    with pytest.raises(ErrorAemet, match="no está sirviendo"):
+    with pytest.raises(ErrorAemet):
         descargar_serie(
             Caido(), "8500A", date(2026, 7, 1), date(2026, 9, 2),
             tmp_path, meses_por_lote=6, hoy=date(2026, 9, 2),
