@@ -148,8 +148,13 @@ jobs:
               --png "$SALIDA/mapa_$tema.png" --tema "$tema"
           done
 
+      # Ojo con estas condiciones: el contexto `inputs` solo existe cuando el
+      # workflow se lanza a mano. En una tirada por cron está vacío, así que
+      # `inputs.X` vale null, GitHub lo compara con false convirtiendo ambos a
+      # cero, y `inputs.X != false` sale FALSA. Escrito así, los pasos se
+      # saltaban en silencio en la única tirada que importa, la automática.
       - name: Mapa de anomalías
-        if: ${{ inputs.anomalias != false }}
+        if: ${{ github.event_name == 'schedule' || inputs.anomalias != false }}
         run: |
           set -euo pipefail
           destino="resultados/anomalias_$VARIABLE"
@@ -209,7 +214,7 @@ jobs:
           if-no-files-found: error
 
       - name: Enviar a Telegram
-        if: ${{ inputs.telegram != false }}
+        if: ${{ github.event_name == 'schedule' || inputs.telegram != false }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           # El id del chat no es un secreto de verdad, así que vale en
@@ -245,7 +250,7 @@ jobs:
             resultados/anomalias_tmin/mapa_claro.png
 
       - name: Commitear los resultados
-        if: ${{ inputs.commitear != false }}
+        if: ${{ github.event_name == 'schedule' || inputs.commitear != false }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
