@@ -37,7 +37,7 @@ Año      Total  Días  Racha seca   Top 5
 2023      307mm    24       72 d     68%
 2024      448mm    50       47 d     35%
 2025      669mm    52       35 d     44%
-2026      139mm    22       62 d     53% *
+2026      144mm    23       62 d     51% *
 
 * años con menos del 90 % de días observados.
 

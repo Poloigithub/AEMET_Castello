@@ -37,6 +37,6 @@ Año      Días  Cobertura
 2023       24      100%
 2024       50      100%
 2025       52      100%
-2026       22       62%  (año incompleto)
+2026       23       67%  (año incompleto)
 
 CSV guardado en resultados/lluvia1/datos.csv
