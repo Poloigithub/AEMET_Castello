@@ -1,22 +1,21 @@
 Las 10 noches de mínima más alta en Castelló - Almassora, 1990–2026
 
-  1.   27,1 °C   11 de agosto de 2025
-  2.   26,6 °C   13 de agosto de 2022
-  3.   26,5 °C   5 de agosto de 2018
+  1.   27,4 °C   21 de julio de 2026
+  2.   27,1 °C   11 de agosto de 2025
+  3.   26,9 °C   19 de julio de 2026
+  4.   26,6 °C   13 de agosto de 2022
+  5.   26,5 °C   5 de agosto de 2018
        26,5 °C   20 de julio de 2023
-  5.   26,2 °C   28 de julio de 2003
+  7.   26,4 °C   17 de julio de 2026
+       26,4 °C   18 de julio de 2026
+  9.   26,3 °C   22 de julio de 2026
+ 10.   26,2 °C   28 de julio de 2003
        26,2 °C   16 de julio de 2023
        26,2 °C   31 de julio de 2023
-  8.   26,1 °C   19 de julio de 2023
-  9.   26,0 °C   3 de julio de 2025
- 10.   25,9 °C   21 de julio de 2015
-       25,9 °C   31 de julio de 2022
-       25,9 °C   14 de agosto de 2022
-       25,9 °C   24 de julio de 2023
 
-(Son 13 y no 10 por empate en el último puesto.)
+(Son 12 y no 10 por empate en el último puesto.)
 
-Último día con datos: 30 de junio de 2026 (85 días de desfase).
+Último día con datos: 20 de septiembre de 2026 (4 días de desfase).
 
 CSV guardado en resultados/rankings/top10_tmin.csv
 Tabla guardada en resultados/rankings/top10_tmin_claro.png
